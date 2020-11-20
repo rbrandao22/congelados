@@ -1,0 +1,9 @@
+## Prepare files, change encoding and number format
+
+run postgres_launch.sh first (this generates postgres pgdata necessary files)
+then copy original anac csv files to /mnt/postgresdb/pgdata/databases/anac/
+run vim *.csv followed by :argdo write ++enc=utf-8
+also needed is argdo %s/,/./ge | update
+
+copy merc_stats.csv to /mnt/postgresdb/pgdata/databases/mktsinfo/
+    && ipca.csv to /mnt/postgresdb/pgdata/databases/ipca/
