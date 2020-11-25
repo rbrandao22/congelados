@@ -27,9 +27,9 @@ int main(int argc, char* argv[])
   /* PARAMETERS */
 
   const unsigned num_mkts = 18;
-  const unsigned num_draws = 1000;
+  const unsigned num_draws = 10000;
   const unsigned num_bins_renda = 7;
-  const unsigned num_bins_idade = 11;
+  const unsigned num_bins_idade = 12;
   // Geographic segmentation (ver database, dicionario, p/ estados)
   // Nielsen data: Área 1 {CE, RN, PB, PE, AL, SE, BA}
   //               Área 2 {MG, ES, interior RJ}

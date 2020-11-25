@@ -23,9 +23,10 @@ int main(int argc, char* argv[])
         }
 
         // csv import argv[1]
-        if (argc > 1 && (std::strcmp(argv[1], "dicionario") == 0 ||\
+        if (argc > 1 && (std::strcmp(argv[1], "dict_estados") == 0 ||\
+			 std::strcmp(argv[1], "dict_idades") == 0 ||\
 			 std::strcmp(argv[1], "populacao") == 0 ||\
-			 std::strcmp(argv[1], "renda") == 0 ||\
+			 std::strcmp(argv[1], "renda") == 0 ||	  \
 			 std::strcmp(argv[1], "idade") == 0 ||\
 			 std::strcmp(argv[1], "lanches_shares") == 0 ||\
 			 std::strcmp(argv[1], "lanches_precos") == 0)) {

@@ -1,3 +1,4 @@
+#include <cmath>
 #include <pqxx/pqxx>
 #include <random>
 #include <stdexcept>
@@ -22,7 +23,7 @@ GenArrays::GenArrays(const unsigned num_mkts, const unsigned num_draws, const\
   }
   pqxx::nontransaction N(C);
 
-  // fill observed shares
+  /// fill observed shares - S
   unsigned i = 0;
   std::string lanches_shares_query = "SELECT * FROM lanches_shares;";
   pqxx::result R_ls(N.exec(lanches_shares_query));
@@ -37,7 +38,7 @@ GenArrays::GenArrays(const unsigned num_mkts, const unsigned num_draws, const\
     }
   }
 
-  // fill prices
+  /// fill prices - X_p
   i = 0;
   std::string lanches_precos_query = "SELECT * FROM lanches_precos;";
   pqxx::result R_lp(N.exec(lanches_precos_query));
@@ -52,7 +53,7 @@ GenArrays::GenArrays(const unsigned num_mkts, const unsigned num_draws, const\
     }
   }
 
-  // draw v
+  /// draw v
   v.resize(boost::extents[num_draws][1][num_mkts]);
 
   std::default_random_engine generator_n;
@@ -71,6 +72,8 @@ GenArrays::GenArrays(const unsigned num_mkts, const unsigned num_draws, const\
   pqxx::result R_renda(N.exec(renda_query));
   std::string idade_query = "SELECT * FROM idade;";
   pqxx::result R_idade(N.exec(idade_query));
+  std::string dict_idades_query = "SELECT * FROM dict_idades;";
+  pqxx::result R_dict_idades(N.exec(dict_idades_query));
   std::default_random_engine generator_u;
   std::uniform_real_distribution<double> uniform_dist(0., 1.);
   
@@ -100,30 +103,52 @@ GenArrays::GenArrays(const unsigned num_mkts, const unsigned num_draws, const\
 	    share_pop_acum[j+1])
 	  num_estado = areas[i][j];
       }
-      auto c = R_renda.begin() + num_estado - 1;
+      
       // take draw for renda
+      auto c = R_renda.begin() + num_estado - 1;
       double draw_renda = uniform_dist(generator_u);
       double renda;
       for (unsigned j = 0; j < num_bins_renda; ++j) {
 	if (j == 0 && draw_renda < c[num_bins_renda+1].as<double>()) {
 	  renda = c[j+1].as<double>();
 	  j = num_bins_renda;
-	} else if (j == num_bins_renda-1 && draw_renda >	\
+	} else if (j == num_bins_renda-1 && draw_renda >=\
 		   c[num_bins_renda+j].as<double>()) {
 	  renda = c[j+1].as<double>();
-	  j = num_bins_renda;
-	} else if (draw_renda > c[num_bins_renda+j].as<double>() &&	\
+	} else if (draw_renda >= c[num_bins_renda+j].as<double>() &&\
 		   draw_renda < c[num_bins_renda+j+1].as<double>()) {
 	  renda = c[j+1].as<double>();
+	  j = num_bins_renda;
 	}
       }
+      
       // take draw for idade
+      auto c2 = R_idade.begin() + num_estado - 1;
+      double draw_idade = uniform_dist(generator_u);
+      double idade;
+      for (unsigned j = 0; j < num_bins_idade; ++j) {
+	if (j == 0 && draw_idade < c2[j+1].as<double>()) {
+	  auto c3 = R_dict_idades.begin() + j;
+	  idade = c3[1].as<double>();
+	  j = num_bins_idade;
+	} else if (j == num_bins_idade-1 && draw_idade >=\
+		   c2[j].as<double>()) {
+	  auto c3 = R_dict_idades.begin() + j;
+	  idade = c3[1].as<double>();
+	} else if (draw_idade >= c2[j].as<double>() &&\
+		   draw_idade < c2[j+1].as<double>()) {
+	  auto c3 = R_dict_idades.begin() + j;
+	  idade = c3[1].as<double>();
+	  j = num_bins_idade;
+	}
+      }
 
-      //CONTINUE from here (log renda, idade etc)
-      D[draw_counter][0][i] = renda;
+      // fill D
+      D[draw_counter][0][i] = std::log(renda);
+      D[draw_counter][1][i] = std::pow(D[draw_counter][0][i], 2);
+      D[draw_counter][2][i] = idade;
+      int x = 0;
+      x += 1; //DEBUG
     }
-    
-    int x = 0;
-    x += 1; //debug
   }
 }

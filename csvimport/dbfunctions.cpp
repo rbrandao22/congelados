@@ -9,8 +9,10 @@ void csvimport(pqxx::work& W, std::string datafile, std::string table)
 {
   std::string sql_createtbl = "DROP TABLE IF EXISTS " + table + ";"\
       "CREATE TABLE " + table + " (";
-    if (table == "dicionario") {
-      sql_createtbl += "id integer, regiao text";
+    if (table == "dict_estados") {
+      sql_createtbl += "id integer, estado text";
+    } else if (table == "dict_idades") {
+      sql_createtbl += "id integer, idade real";
     } else if (table == "populacao") {
       sql_createtbl += "id integer, populacao text";
     } else if (table == "renda") {
