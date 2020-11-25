@@ -1,238 +1,129 @@
-#include <algorithm>
-#include <cmath>
-#include <iostream>
 #include <pqxx/pqxx>
+#include <random>
 #include <stdexcept>
 #include <string>
-#include <valarray>
 #include <vector>
 
 #include "GenArrays.hpp"
 
 
-// constructor fills products table
-GenArrays::GenArrays(const std::vector<std::string> dates_, \
-            const std::valarray<double> bins_, const double pop_thres)
+GenArrays::GenArrays(const unsigned num_mkts, const unsigned num_draws, const\
+		     std::vector<std::vector<unsigned>> areas, const unsigned\
+		     num_bins_renda, const unsigned num_bins_idade)
 {
-    pqxx::connection C("dbname = aviacao user = postgres password = passwd"\
-            " hostaddr = 127.0.0.1 port = 5432");
-    if (C.is_open()) {
-        std::cout << "Opened database successfully: " << C.dbname() << \
-            std::endl;
-    } else {
-        std::cout << "Can't open database" << std::endl;
-        throw std::runtime_error("aborting");
-    }
-    pqxx::nontransaction N(C);
+  pqxx::connection C("dbname = congelados user = postgres password = passwd"\
+          " hostaddr = 127.0.0.1 port = 5432");
+  if (C.is_open()) {
+      std::cout << "Opened database successfully: " << C.dbname() << \
+          std::endl;
+  } else {
+      std::cout << "Can't open database" << std::endl;
+      throw std::runtime_error("aborting");
+  }
+  pqxx::nontransaction N(C);
 
-    dates = dates_;
-    // loop dates
-    unsigned counter_dates = 0;
-    for (auto& date : dates) {
-        // set bin to jan 2020 nominal values
-        std::valarray<double> bins = bins_;
-        std::string ipca_query = "SELECT index FROM ipca WHERE date = '" + \
-                date + "';";
-        pqxx::result R_ipca(N.exec(ipca_query));
-        auto c = R_ipca.begin();
-        bins *= c[0].as<double>() / 100;
+  // fill observed shares
+  unsigned i = 0;
+  std::string lanches_shares_query = "SELECT * FROM lanches_shares;";
+  pqxx::result R_ls(N.exec(lanches_shares_query));
+  S.resize(R_ls.size(), num_mkts);  // allocate memory
+  for (auto c = R_ls.begin(); c != R_ls.end(); ++c, ++i) {
+    for (unsigned j = 0; j != num_mkts; ++j) {
+	if (!c[j+1].is_null()) {
+	  S(i, j) = c[j+1].as<double>();  // +1 skips 1st column (prod name)
+	} else {
+	  S(i, j) = 0;
+	}
+    }
+  }
+
+  // fill prices
+  i = 0;
+  std::string lanches_precos_query = "SELECT * FROM lanches_precos;";
+  pqxx::result R_lp(N.exec(lanches_precos_query));
+  X_p.resize(R_lp.size(), num_mkts);  // allocate memory
+  for (auto c = R_lp.begin(); c != R_lp.end(); ++c, ++i) {
+    for (unsigned j = 0; j != num_mkts; ++j) {
+	if (!c[j+1].is_null()) {
+	  X_p(i, j) = c[j+1].as<double>();
+	} else {
+	  X_p(i, j) = 0;
+	}
+    }
+  }
+
+  // draw v
+  v.resize(boost::extents[num_draws][1][num_mkts]);
+
+  std::default_random_engine generator_n;
+  std::normal_distribution<double> normal_dist(0., 1.);
+  for (unsigned i = 0; i != num_draws; ++i) {
+    for (unsigned j = 0; j != num_mkts; ++j) {
+      v[i][0][j] = normal_dist(generator_n);
+    }
+  }
+
+  /// draw D
+  
+  // allocate and grab from db
+  D.resize(boost::extents[num_draws][3][num_mkts]);
+  std::string renda_query = "SELECT * FROM renda;";
+  pqxx::result R_renda(N.exec(renda_query));
+  std::string idade_query = "SELECT * FROM idade;";
+  pqxx::result R_idade(N.exec(idade_query));
+  std::default_random_engine generator_u;
+  std::uniform_real_distribution<double> uniform_dist(0., 1.);
+  
+  for (unsigned i = 0; i != areas.size(); ++i) {
+    std::vector<double> share_pop;
+    std::string pop_query = "SELECT populacao FROM populacao WHERE id = ";
+    for (const auto& estado : areas[i]) {
+      pqxx::result R_pop(N.exec(pop_query + std::to_string(estado) + ";"));
+      auto c = R_pop.begin();
+      share_pop.push_back(c[0].as<double>());
+    }
+    double share_pop_total = std::accumulate(share_pop.begin(), share_pop.end(), 0.);
+    std::vector<double> share_pop_acum;
+    share_pop_acum.push_back(0.);
+    for (unsigned j = 1; j != share_pop.size(); ++j) {
+      share_pop_acum.push_back(std::accumulate(share_pop.begin(),\
+					       share_pop.begin() + j, 0.) /\
+			       share_pop_total);
+    }
+    share_pop_acum.push_back(1.+1e-6);
+    // select estado from a given area or mkt
+    for (unsigned draw_counter = 0; draw_counter < num_draws; ++draw_counter) {
+      double draw_estado = uniform_dist(generator_u);
+      unsigned num_estado;
+      for (unsigned j = 0; j != share_pop_acum.size()-1; ++j) {
+	if (draw_estado >= share_pop_acum[j] && draw_estado <\
+	    share_pop_acum[j+1])
+	  num_estado = areas[i][j];
+      }
+      auto c = R_renda.begin() + num_estado - 1;
+      // take draw for renda
+      double draw_renda = uniform_dist(generator_u);
+      double renda;
+      for (unsigned j = 0; j < num_bins_renda; ++j) {
+	if (j == 0 && draw_renda < c[num_bins_renda+1].as<double>()) {
+	  renda = c[j+1].as<double>();
+	  j = num_bins_renda;
+	} else if (j == num_bins_renda-1 && draw_renda >	\
+		   c[num_bins_renda+j].as<double>()) {
+	  renda = c[j+1].as<double>();
+	  j = num_bins_renda;
+	} else if (draw_renda > c[num_bins_renda+j].as<double>() &&	\
+		   draw_renda < c[num_bins_renda+j+1].as<double>()) {
+	  renda = c[j+1].as<double>();
+	}
+      }
+      // take draw for idade
+
+      //CONTINUE from here (log renda, idade etc)
+      D[draw_counter][0][i] = renda;
+    }
     
-        // get mkts from given period
-        std::string mkts_query = "SELECT DISTINCT origem, destino FROM csv_" + \
-                date + ";";
-        pqxx::result R_mkts(N.exec(mkts_query));
-        for (auto c2 = R_mkts.begin(); c2 != R_mkts.end(); ++c2) {
-            std::string pop_query = "SELECT pop_origem, pop_destino FROM " \
-                    "mktsinfo WHERE mercado = '" + c2[0].as<std::string>() + \
-                    "-" + c2[1].as<std::string>() + "';";
-            pqxx::result R_pop(N.exec(pop_query));
-            if (R_pop.size() == 0)
-                continue;
-            auto c3 = R_pop.begin();
-            if (c3[0].as<double>() > pop_thres && c3[1].as<double>() > \
-                    pop_thres) {
-                std::string companies_query = "SELECT DISTINCT empresa FROM "\
-                        "csv_" + date + " WHERE origem = '" + c2[0].as\
-                        <std::string>() + "' AND destino = '" + c2[1].as\
-                        <std::string>() + "';";
-                pqxx::result R_companies(N.exec(companies_query));
-                if (R_companies.size() > 1) {
-                    for (auto c4 = R_companies.begin(); c4 != \
-                            R_companies.end(); ++c4) {
-                        for (double i = 0; i < bins.size() - 1; ++i) {
-                            products.push_back(std::make_tuple\
-					       (c2[0].as<std::string>(),\
-						c2[1].as<std::string>(),\
-						c4[0].as<std::string>(),\
-						bins[i], bins[i+1],\
-						R_companies.size(),\
-						counter_dates));
-                        }
-                    }
-                }
-            }
-        }
-
-        ++counter_dates;
-    }
-    std::cout << "GenArrays constructor finished successfully, products " \
-            "loaded" << std::endl;
-}
-
-void GenArrays::gen_instruments()
-{
-    // allocate memory
-    instruments.resize(products.size());
-
-    // connect to database
-    pqxx::connection C("dbname = aviacao user = postgres password = passwd"\
-            " hostaddr = 127.0.0.1 port = 5432");
-    if (C.is_open()) {
-        std::cout << "Opened database successfully: " << C.dbname() << \
-                std::endl;
-    } else {
-        std::cout << "Can't open database" << std::endl;
-        throw std::runtime_error("aborting");
-    }
-    
-    pqxx::nontransaction N(C);
-    unsigned i = 0;    
-    while (i < products.size()) {
-        std::string query = "SELECT querosene FROM instruments WHERE date = '"\
-	        + dates[std::get<6>(products[i])] + "';";
-        pqxx::result R(N.exec(query));
-	auto c = R.begin();
-	instruments[i] = c[0].as<double>();
-        ++i;    
-    }    
-}
-
-void GenArrays::gen_arrays()
-{
-    // allocate memory and initialize
-    s_obs_wg.resize(products.size());
-    mkt_id.resize(products.size());
-    std::fill(s_obs_wg.data().begin(), s_obs_wg.data().end(), 0.0);
-    pop_ave.resize(products.size());
-    X.resize(products.size(), 10);
-    // Z matrix w/ 1 instrument, just-identified
-    Z.resize(products.size(), 10);
-
-    // connect to database
-    pqxx::connection C("dbname = aviacao user = postgres password = passwd"\
-            " hostaddr = 127.0.0.1 port = 5432");
-    if (C.is_open()) {
-        std::cout << "Opened database successfully: " << C.dbname() << \
-                std::endl;
-    } else {
-        std::cout << "Can't open database" << std::endl;
-        throw std::runtime_error("aborting");
-    }
-    pqxx::nontransaction N(C);
-
-    for (auto& date: dates) {
-        // loop products
-        unsigned i = 0;
-        unsigned initial_aux_i = 0;
-        unsigned aux_mkt_id = 0;
-        double mkt_total = 0;
-        std::string curr_mkt = " ";
-        std::string mkt = "";
-        while (i < products.size()) {
-            mkt = std::get<0>(products[i]) + std::get<1>(products[i]);
-            if (curr_mkt == " " || mkt == curr_mkt) {
-                if (curr_mkt == " ")
-                    curr_mkt = mkt;
-                std::string query = "SELECT assentos FROM csv_" + date + \
-                        " WHERE origem = '" + std::get<0>(products[i]) + \
-                        "' AND destino = '" + std::get<1>(products[i]) + \
-                        "' AND empresa = '" + std::get<2>(products[i]) + \
-                        "' AND tarifa >= " + std::to_string(std::get<3>(products\
-                        [i])) + " AND tarifa < " + std::to_string(std::get<4>\
-                        (products[i])) + ";";
-                pqxx::result R(N.exec(query));
-                for (auto c = R.begin(); c != R.end(); ++c) {
-                    s_obs_wg[i] += c[0].as<double>();
-                }
-                mkt_total += s_obs_wg[i];
-
-                // query for pop_ave and X mkt info
-                std::string query2 = "SELECT media_g_pop, dist FROM mktsinfo " \
-                        "WHERE mercado = '" + std::get<0>(products[i]) + "-" + \
-                        std::get<1>(products[i]) + "';";
-                pqxx::result R2(N.exec(query2));
-                auto c2 = R2.begin();
-                // fill pop_ave
-                pop_ave[i] = c2[0].as<double>();
-
-                // fill X and Z
-                X(i, 0) = 1.;
-		Z(i, 0) = 1.;
-                X(i, 1) = ((std::get<3>(products[i]) + std::get<4>(products\
-                        [i])) / 2.) /1000;
-		Z(i, 1) = instruments[i];
-                X(i, 2) = c2[1].as<double>() / 1000;
-                Z(i, 2) = c2[1].as<double>() / 1000;		
-                X(i, 3) = pow(c2[1].as<double>() / 1000, 2);
-		Z(i, 3) = pow(c2[1].as<double>() / 1000, 2);
-		if (std::get<2>(products[i]) == "AZU") {
-		  X(i, 4) = 0.; Z(i, 4) = 0.;
-		  X(i, 5) = 0.; Z(i, 5) = 0.;
-		  X(i, 6) = 0.; Z(i, 6) = 0.;
-		  X(i, 7) = 0.; Z(i, 7) = 0.;
-		} else if (std::get<2>(products[i]) == "TAM") {
-		  X(i, 4) = 1.; Z(i, 4) = 1.;
-		  X(i, 5) = 0.;	Z(i, 5) = 0.;
-		  X(i, 6) = 0.;	Z(i, 6) = 0.;
-		  X(i, 7) = 0.;	Z(i, 7) = 0.;
-		} else if (std::get<2>(products[i]) == "GLO") {
-		  X(i, 4) = 0.; Z(i, 4) = 0.;
-		  X(i, 5) = 1.;	Z(i, 5) = 1.;
-		  X(i, 6) = 0.;	Z(i, 6) = 0.;
-		  X(i, 7) = 0.;	Z(i, 7) = 0.;
-		} else if (std::get<2>(products[i]) == "ONE") {
-		  X(i, 4) = 0.; Z(i, 4) = 0.;
-		  X(i, 5) = 0.;	Z(i, 5) = 0.;
-		  X(i, 6) = 1.;	Z(i, 6) = 1.;
-		  X(i, 7) = 0.;	Z(i, 7) = 0.;
-		} else {
-		  X(i, 4) = 0.; Z(i, 4) = 0.;
-		  X(i, 5) = 0.;	Z(i, 5) = 0.;
-		  X(i, 6) = 0.;	Z(i, 6) = 0.;
-		  X(i, 7) = 1.;	Z(i, 7) = 1.;
-		}
-		if (std::get<6>(products[i]) == 0) {
-		  X(i, 8) = 0.; Z(i, 8) = 0.;
-		  X(i, 9) = 0.; Z(i, 9) = 0.;
-		} else if (std::get<6>(products[i]) == 1) {
-		  X(i, 8) = 1.; Z(i, 8) = 1.;
-		  X(i, 9) = 0.; Z(i, 9) = 0.;
-		} else if (std::get<6>(products[i]) == 2) {
-		  X(i, 8) = 0.; Z(i, 8) = 0.;
-		  X(i, 9) = 1.; Z(i, 9) = 1.;
-		}
-		
-                ++i;
-            } else {
-                for (unsigned x = initial_aux_i; x <= i; ++x) {
-                    s_obs_wg[x] /= mkt_total;
-                    mkt_id[x] = aux_mkt_id;
-                }
-                std::cout << "Finished s, pop_ave and X calcs for mkt " + \
-                        curr_mkt << std::endl;
-                curr_mkt = mkt;
-                mkt_total = 0;
-                initial_aux_i = i;
-                ++aux_mkt_id;
-            }
-            if (i == products.size()) {
-                for (unsigned x = initial_aux_i; x < i; ++x) {
-                    s_obs_wg[x] /= mkt_total;
-                    mkt_id[x] = aux_mkt_id;
-                }
-		std::cout << "Finished s, pop_ave and X calcs for mkt " + \
-                        curr_mkt << std::endl;
-	    }
-        }
-    }
+    int x = 0;
+    x += 1; //debug
+  }
 }

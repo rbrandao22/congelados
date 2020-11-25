@@ -7,7 +7,6 @@
 #include <iostream>
 #include <string>
 #include <thread>
-#include <valarray>
 #include <vector>
 #include <boost/archive/text_oarchive.hpp>
 
@@ -27,6 +26,25 @@ int main(int argc, char* argv[])
 
   /* PARAMETERS */
 
+  const unsigned num_mkts = 18;
+  const unsigned num_draws = 1000;
+  const unsigned num_bins_renda = 7;
+  const unsigned num_bins_idade = 11;
+  // Geographic segmentation (ver database, dicionario, p/ estados)
+  // Nielsen data: Área 1 {CE, RN, PB, PE, AL, SE, BA}
+  //               Área 2 {MG, ES, interior RJ}
+  //               Área 3 {área metropolitana RJ}
+  //               Área 4 {área metropolitana SP}
+  //               Área 5 {interior SP}
+  //               Área 6 {PR, SC, RS}
+  //               Área 7 {MS, GO, Brasília}
+  const std::vector<std::vector<unsigned>> areas = { {10, 11, 12, 13, 14,\
+							    15, 16}, {17, 18,\
+								      19}, {19},\
+							   {20}, {20}, {21, 22,\
+									23},\
+							   {24, 26, 27} };
+  /*
   // estimation periods - currently quarters only
   const std::vector<std::string> dates = {"201801", "201802", "201803"};
   // run identifier
@@ -39,9 +57,10 @@ int main(int argc, char* argv[])
 				      5e5};
   // population threshold
   const unsigned pop_thres = {500000};
-
+  */
   // results directory
   const std::string results_dir = "results/";
+  /*
   const std::string persist_file = results_dir + "arrays/" + run_id;
   const std::string persist_file2 = results_dir + "est_params/" + run_id;
   // initial guess file ((alpha, beta)_r, gamma, lambda, mu)
@@ -75,10 +94,13 @@ int main(int argc, char* argv[])
   const double alpha = {5}; // reflection, alpha > 0
   const double beta = {.5}; // contraction, beta in [0,1]
   const double gamma = {15}; // expansion, gamma > 1
-
+  */
   /* END OF PARAMETERS */
 
   if (argc > 1 && std::strcmp(argv[1], "genarrays") == 0) {
+    GenArrays inst_GA(num_mkts, num_draws, areas, num_bins_renda,\
+		      num_bins_idade);
+    /*
     GenArrays inst_GA(dates, bins, pop_thres);
     inst_GA.gen_instruments();
     inst_GA.gen_arrays();    
@@ -125,20 +147,6 @@ int main(int argc, char* argv[])
       if (inst_BLP.halt_check) 
         break;
       inst_BLP.step(step_size, max_step, step_factor, iter_nbr);
-      /*
-      if (inst_BLP.do_NelderMead) {
-	inst_BLP.updatePs_NM();
-	threads.clear();
-	for (unsigned pt = 1; pt <= inst_BLP.params_nbr; ++pt) {
-	  threads.push_back(std::thread(&BLP::calc_objective,\
-					std::ref(inst_BLP), pt, true));
-	}
-	for (auto& thread : threads) {
-	  thread.join();
-	}
-	inst_BLP.nelder_mead(alpha, beta, gamma);
-	inst_BLP.updateP0_NM(iter_nbr);
-      }*/
       if (iter_nbr == max_iter)
 	break;
       ++iter_nbr;
@@ -150,7 +158,7 @@ int main(int argc, char* argv[])
     // persist results
     inst_BLP.persist(persist_file2);
     std::cout << "# of iterations: " << iter_nbr << std::endl;
-
+    */
   } else {
     std::cout << "Invalid args!" << std::endl;
     throw std::runtime_error("aborting");
