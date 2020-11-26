@@ -44,12 +44,9 @@ int main(int argc, char* argv[])
 							   {20}, {20}, {21, 22,\
 									23},\
 							   {24, 26, 27} };
-  /*
-  // estimation periods - currently quarters only
-  const std::vector<std::string> dates = {"201801", "201802", "201803"};
   // run identifier
-  const std::string run_id = "2018Q1";
-
+  const std::string run_id = "01";
+  /*
   /// Genarrays
   // price bins
   const std::valarray<double> bins = {0, 100, 200, 300, 400, 500, 600, 700, 800,\
@@ -60,8 +57,8 @@ int main(int argc, char* argv[])
   */
   // results directory
   const std::string results_dir = "results/";
-  /*
   const std::string persist_file = results_dir + "arrays/" + run_id;
+  /*
   const std::string persist_file2 = results_dir + "est_params/" + run_id;
   // initial guess file ((alpha, beta)_r, gamma, lambda, mu)
   const std::string initguess_f = results_dir + "init_guess";
@@ -100,10 +97,7 @@ int main(int argc, char* argv[])
   if (argc > 1 && std::strcmp(argv[1], "genarrays") == 0) {
     GenArrays inst_GA(num_periods, num_draws, areas, num_bins_renda,\
 		      num_bins_idade);
-    /*
-    GenArrays inst_GA(dates, bins, pop_thres);
-    inst_GA.gen_instruments();
-    inst_GA.gen_arrays();    
+
     // serialize
     {
         std::remove(persist_file.c_str());
@@ -112,7 +106,7 @@ int main(int argc, char* argv[])
         boost::archive::text_oarchive oa(ofs);
         oa << inst_GA;
     }
-
+    /*
   } else if ((argc > 1 && std::strcmp(argv[1], "estimation") == 0) ||\
 	     (argc > 2 && std::strcmp(argv[1], "genarrays") == 0 &&\
 	      std::strcmp(argv[2], "estimation") == 0)) {

@@ -98,8 +98,8 @@ GenArrays::GenArrays(const unsigned num_periods, const unsigned num_draws, const
 	}
       }
       // brand dummies
-      for (unsigned col = 1 + areas.size(); col != X1.size2(); ++col) {
-	if (j == col - 1 - areas.size() && j != num_prods - 1) {
+      for (unsigned col = areas.size(); col != X1.size2(); ++col) {
+	if ((j == col - areas.size()) && (j != num_prods - 1)) {
 	  X1(i, col) = 1;  // coeffs are relative to outside good
 	} else {
 	  X1(i, col) = 0;

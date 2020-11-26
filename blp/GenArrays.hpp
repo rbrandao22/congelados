@@ -27,6 +27,15 @@ public:
     X2.clear();
     mkt_id.clear();
   }
+  template<class Archive>
+  void serialize(Archive & ar, const unsigned int version)
+  {
+    ar & S;
+    ar & delta;
+    ar & X1;
+    ar & X2;
+    ar & mkt_id;
+  }
 
 private:
   double num_mkts;
