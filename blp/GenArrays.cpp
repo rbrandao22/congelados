@@ -59,7 +59,7 @@ GenArrays::GenArrays(const unsigned num_periods, const unsigned num_draws, const
     delta((t+1) * num_prods - 1) = 0.;
   }
 
-  /// fill X2 - prices
+  /// fill X2 - precos
   X2.resize(num_prods * num_mkts, 1);
   std::string lanches_precos_query = "SELECT * FROM lanches_precos;";
   pqxx::result R_lp(N.exec(lanches_precos_query));
@@ -75,6 +75,38 @@ GenArrays::GenArrays(const unsigned num_periods, const unsigned num_draws, const
     }
     X2(i, 0) = 0.;  // outside good
     ++i;
+  }
+
+
+  /// fill X1 - precos, area dummies e brand dummies
+  X1.resize(num_prods * num_mkts, 1 + areas.size() + num_prods - 2);
+  i = 0;
+  unsigned area;
+  for (unsigned t = 0; t != num_mkts; ++t) {
+    area = t / num_periods;
+    for (unsigned j = 0; j != num_prods; ++j) {
+      // precos
+      X1(i, 0) = X2(i, 0);
+      // area dummies
+      for (unsigned col = 1; col != 1 + areas.size(); ++col) {
+	if (area == 0) {
+	  X1(i, col) = 0;  // this make coefficients relative to Area I
+	} else if (area != 0 && col == area) {
+	  X1(i, col) = 1;
+	} else {
+	  X1(i, col) = 0;
+	}
+      }
+      // brand dummies
+      for (unsigned col = 1 + areas.size(); col != X1.size2(); ++col) {
+	if (j == col - 1 - areas.size() && j != num_prods - 1) {
+	  X1(i, col) = 1;  // coeffs are relative to outside good
+	} else {
+	  X1(i, col) = 0;
+	}
+      }
+      ++i;
+    }
   }
 
   /// draw v
