@@ -26,7 +26,7 @@ int main(int argc, char* argv[])
 
   /* PARAMETERS */
 
-  const unsigned num_mkts = 18;
+  const unsigned num_periods = 18;
   const unsigned num_draws = 10000;
   const unsigned num_bins_renda = 7;
   const unsigned num_bins_idade = 12;
@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
   /* END OF PARAMETERS */
 
   if (argc > 1 && std::strcmp(argv[1], "genarrays") == 0) {
-    GenArrays inst_GA(num_mkts, num_draws, areas, num_bins_renda,\
+    GenArrays inst_GA(num_periods, num_draws, areas, num_bins_renda,\
 		      num_bins_idade);
     /*
     GenArrays inst_GA(dates, bins, pop_thres);

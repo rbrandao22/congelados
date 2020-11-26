@@ -8,7 +8,7 @@
 #include "GenArrays.hpp"
 
 
-GenArrays::GenArrays(const unsigned num_mkts, const unsigned num_draws, const\
+GenArrays::GenArrays(const unsigned num_periods, const unsigned num_draws, const\
 		     std::vector<std::vector<unsigned>> areas, const unsigned\
 		     num_bins_renda, const unsigned num_bins_idade)
 {
@@ -23,43 +23,66 @@ GenArrays::GenArrays(const unsigned num_mkts, const unsigned num_draws, const\
   }
   pqxx::nontransaction N(C);
 
-  /// fill observed shares - S
-  unsigned i = 0;
+  /// fill observed shares - S, and mkt_id
   std::string lanches_shares_query = "SELECT * FROM lanches_shares;";
   pqxx::result R_ls(N.exec(lanches_shares_query));
-  S.resize(R_ls.size(), num_mkts);  // allocate memory
-  for (auto c = R_ls.begin(); c != R_ls.end(); ++c, ++i) {
-    for (unsigned j = 0; j != num_mkts; ++j) {
-	if (!c[j+1].is_null()) {
-	  S(i, j) = c[j+1].as<double>();  // +1 skips 1st column (prod name)
-	} else {
-	  S(i, j) = 0;
-	}
+  num_mkts = num_periods * areas.size();
+  num_prods = R_ls.size();
+  S.resize(num_prods * num_mkts);
+  mkt_id.resize(num_prods * num_mkts);
+  unsigned i = 0;
+  unsigned mkt_counter = 0;
+  for (unsigned t = 0; t != num_mkts; ++t) {
+    for (auto c = R_ls.begin(); c != R_ls.end(); ++c) {
+      if (!c[t+1].is_null()) {
+	S(i) = c[t+1].as<double>();  // +1 skips 1st column (prod name)
+      } else {
+	S(i) = NAN;
+      }
+      mkt_id[i] = mkt_counter;
+      ++i;
     }
+    ++mkt_counter;
   }
 
-  /// fill prices - X_p
-  i = 0;
+  /// fill delta (initial value log S_jt - log S_0t)
+  delta.resize(num_prods * num_mkts);
+  for (unsigned t = 0; t != num_mkts; ++t) {
+    for (unsigned j = 0; j != num_prods - 1; ++j) {
+      if (!std::isnan(S(t * num_prods + j))) {
+	delta(t * num_prods + j) = std::log(S(t * num_prods + j)) -\
+	  std::log(S((t+1) * num_prods - 1));
+      } else {
+	delta(t * num_prods + j) = NAN;
+      }
+    }
+    delta((t+1) * num_prods - 1) = 0.;
+  }
+
+  /// fill X2 - prices
+  X2.resize(num_prods * num_mkts, 1);
   std::string lanches_precos_query = "SELECT * FROM lanches_precos;";
   pqxx::result R_lp(N.exec(lanches_precos_query));
-  X_p.resize(R_lp.size(), num_mkts);  // allocate memory
-  for (auto c = R_lp.begin(); c != R_lp.end(); ++c, ++i) {
-    for (unsigned j = 0; j != num_mkts; ++j) {
-	if (!c[j+1].is_null()) {
-	  X_p(i, j) = c[j+1].as<double>();
-	} else {
-	  X_p(i, j) = 0;
-	}
+  i = 0;
+  for (unsigned t = 0; t != num_mkts; ++t) {
+    for (auto c = R_lp.begin(); c != R_lp.end(); ++c) {
+      if (!c[t+1].is_null()) {
+	X2(i, 0) = c[t+1].as<double>();  // +1 skips 1st column (prod name)
+      } else {
+	X2(i, 0) = NAN;
+      }
+      ++i;
     }
+    X2(i, 0) = 0.;  // outside good
+    ++i;
   }
 
   /// draw v
-  v.resize(boost::extents[num_draws][1][num_mkts]);
-
+  v.resize(boost::extents[num_draws][1][num_periods]);
   std::default_random_engine generator_n;
   std::normal_distribution<double> normal_dist(0., 1.);
   for (unsigned i = 0; i != num_draws; ++i) {
-    for (unsigned j = 0; j != num_mkts; ++j) {
+    for (unsigned j = 0; j != num_periods; ++j) {
       v[i][0][j] = normal_dist(generator_n);
     }
   }
@@ -67,7 +90,7 @@ GenArrays::GenArrays(const unsigned num_mkts, const unsigned num_draws, const\
   /// draw D
   
   // allocate and grab from db
-  D.resize(boost::extents[num_draws][3][num_mkts]);
+  D.resize(boost::extents[num_draws][3][areas.size()]);
   std::string renda_query = "SELECT * FROM renda;";
   pqxx::result R_renda(N.exec(renda_query));
   std::string idade_query = "SELECT * FROM idade;";
@@ -147,8 +170,10 @@ GenArrays::GenArrays(const unsigned num_mkts, const unsigned num_draws, const\
       D[draw_counter][0][i] = std::log(renda);
       D[draw_counter][1][i] = std::pow(D[draw_counter][0][i], 2);
       D[draw_counter][2][i] = idade;
-      int x = 0;
-      x += 1; //DEBUG
+      auto debug = false;
+      if (debug)
+	std::cout << "debug" << std::endl; //DEBUG
     }
   }
+  N.commit();
 }
