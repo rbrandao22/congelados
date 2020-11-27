@@ -109,6 +109,31 @@ GenArrays::GenArrays(const unsigned num_periods, const unsigned num_draws, const
     }
   }
 
+  /// fill Z - area dummies, brand dummies e instrumentos: precos de outras
+  // areas no mesmo periodo
+  Z.resize(num_prods * num_mkts, areas.size() + num_prods - 2 + areas.size()\
+	   - 1);
+  unsigned period;
+  unsigned col;
+  i = 0;
+  for (unsigned t = 0; t != num_mkts; ++t) {
+    period = t % num_periods;
+    for (unsigned j = 0; j != num_prods; ++j) {
+      for (col = 1; col != X1.size2(); ++col) {
+	Z(i, col-1) = X1(i, col);
+      }
+      col = X1.size2() - 1;
+      for (unsigned k = 0; k != areas.size(); ++k) {
+	if (i != j + period * num_prods + k * (num_prods * num_periods)) {
+	  Z(i, col) = X1(j + period * num_prods + k * (num_prods * num_periods)\
+			 , 0);
+	++col;
+	}
+      }
+      ++i;
+    }
+  }
+
   /// draw v
   v.resize(boost::extents[num_draws][1][num_periods]);
   std::default_random_engine generator_n;

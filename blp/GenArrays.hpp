@@ -25,6 +25,7 @@ public:
     delta.clear();
     X1.clear();
     X2.clear();
+    Z.clear();
     mkt_id.clear();
   }
   template<class Archive>
@@ -34,6 +35,7 @@ public:
     ar & delta;
     ar & X1;
     ar & X2;
+    ar & Z;
     ar & mkt_id;
   }
 
@@ -44,6 +46,7 @@ private:
   ublas::vector<double> delta;
   ublas::matrix<double> X1;
   ublas::matrix<double> X2;
+  ublas::matrix<double> Z;
   ublas::vector<unsigned> mkt_id;
   boost::multi_array<double, 3> v;
   boost::multi_array<double, 3> D;
