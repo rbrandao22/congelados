@@ -6,7 +6,6 @@
 
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
-#include "boost/multi_array.hpp"
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/vector.hpp>
 
@@ -16,9 +15,8 @@ namespace ublas = boost::numeric::ublas;
 class GenArrays
 {
 public:
-  GenArrays(const unsigned num_periods, const unsigned num_draws, const\
-	    std::vector<std::vector<unsigned>> areas, const unsigned\
-	    num_bins_renda, const unsigned num_bins_idade);
+  GenArrays(const unsigned num_periods, const\
+	    std::vector<std::vector<unsigned>> areas);
   ~GenArrays()
   {
     S.clear();
@@ -38,6 +36,7 @@ public:
     ar & Z;
     ar & mkt_id;
   }
+  void elim_nans();
 
 private:
   double num_mkts;
@@ -48,8 +47,6 @@ private:
   ublas::matrix<double> X2;
   ublas::matrix<double> Z;
   ublas::vector<unsigned> mkt_id;
-  boost::multi_array<double, 3> v;
-  boost::multi_array<double, 3> D;
 };
 
 #endif

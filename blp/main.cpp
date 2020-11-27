@@ -46,15 +46,6 @@ int main(int argc, char* argv[])
 							   {24, 26, 27} };
   // run identifier
   const std::string run_id = "01";
-  /*
-  /// Genarrays
-  // price bins
-  const std::valarray<double> bins = {0, 100, 200, 300, 400, 500, 600, 700, 800,\
-				      900, 1e3, 1.25e3, 1.5e3, 1.75e3, 2e3, 3e3,\
-				      5e5};
-  // population threshold
-  const unsigned pop_thres = {500000};
-  */
   // results directory
   const std::string results_dir = "results/";
   const std::string persist_file = results_dir + "arrays/" + run_id;
@@ -65,8 +56,10 @@ int main(int argc, char* argv[])
   
   // maximum number of iterations
   const unsigned max_iter = {1000000};
-  
+  */  
   //// Estimation params
+  std::vector<double> theta2 = {.01, .01, .01, .01};
+  /*
   // minimum 'observed shares' for numerical feasibility
   const double min_share = {1e-20};
   /// BLP contraction
@@ -95,9 +88,8 @@ int main(int argc, char* argv[])
   /* END OF PARAMETERS */
 
   if (argc > 1 && std::strcmp(argv[1], "genarrays") == 0) {
-    GenArrays inst_GA(num_periods, num_draws, areas, num_bins_renda,\
-		      num_bins_idade);
-
+    GenArrays inst_GA(num_periods, areas);
+    inst_GA.elim_nans();
     // serialize
     {
         std::remove(persist_file.c_str());
@@ -106,15 +98,11 @@ int main(int argc, char* argv[])
         boost::archive::text_oarchive oa(ofs);
         oa << inst_GA;
     }
-    /*
   } else if ((argc > 1 && std::strcmp(argv[1], "estimation") == 0) ||\
 	     (argc > 2 && std::strcmp(argv[1], "genarrays") == 0 &&\
 	      std::strcmp(argv[2], "estimation") == 0)) {
     // instantiate
-    BLP inst_BLP(initguess_f, min_share, contract_tol, max_iter_contract,\
-		 penalty_param1, penalty_param2, init_tetra_size1,\
-		 init_tetra_size2);
-    
+    BLP inst_BLP(num_periods, num_draws, num_bins_renda, num_bins_idade, areas);
     // deserialize
     {
         std::ifstream ifs(persist_file);
@@ -123,6 +111,9 @@ int main(int argc, char* argv[])
         ia >> inst_BLP;
 	ifs.close();
     }
+    inst_BLP.allocate();
+    inst_BLP.calc_objective(theta2);
+    /*
     inst_BLP.allocate();
     // GMM
     unsigned iter_nbr = 0;

@@ -1,16 +1,19 @@
 #include <cmath>
 #include <pqxx/pqxx>
-#include <random>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
+#include <boost/numeric/ublas/matrix.hpp>
+#include <boost/numeric/ublas/vector.hpp>
+
 #include "GenArrays.hpp"
 
+namespace ublas = boost::numeric::ublas;
 
-GenArrays::GenArrays(const unsigned num_periods, const unsigned num_draws, const\
-		     std::vector<std::vector<unsigned>> areas, const unsigned\
-		     num_bins_renda, const unsigned num_bins_idade)
+
+GenArrays::GenArrays(const unsigned num_periods, const\
+		     std::vector<std::vector<unsigned>> areas)
 {
   pqxx::connection C("dbname = congelados user = postgres password = passwd"\
           " hostaddr = 127.0.0.1 port = 5432");
@@ -115,6 +118,7 @@ GenArrays::GenArrays(const unsigned num_periods, const unsigned num_draws, const
 	   - 1);
   unsigned period;
   unsigned col;
+  unsigned aux_row;
   i = 0;
   for (unsigned t = 0; t != num_mkts; ++t) {
     period = t % num_periods;
@@ -124,113 +128,72 @@ GenArrays::GenArrays(const unsigned num_periods, const unsigned num_draws, const
       }
       col = X1.size2() - 1;
       for (unsigned k = 0; k != areas.size(); ++k) {
-	if (i != j + period * num_prods + k * (num_prods * num_periods)) {
-	  Z(i, col) = X1(j + period * num_prods + k * (num_prods * num_periods)\
-			 , 0);
+	aux_row = j + period * num_prods + k * (num_prods * num_periods);
+	if (i != aux_row) {
+	  if (!(std::isnan(X1(aux_row, 0)))) {
+	    Z(i, col) = X1(aux_row, 0);
+	  } else {
+	    Z(i, col) = 0;
+	  }
 	++col;
 	}
       }
       ++i;
     }
   }
-
-  /// draw v
-  v.resize(boost::extents[num_draws][1][num_periods]);
-  std::default_random_engine generator_n;
-  std::normal_distribution<double> normal_dist(0., 1.);
-  for (unsigned i = 0; i != num_draws; ++i) {
-    for (unsigned j = 0; j != num_periods; ++j) {
-      v[i][0][j] = normal_dist(generator_n);
-    }
-  }
-
-  /// draw D
-  
-  // allocate and grab from db
-  D.resize(boost::extents[num_draws][3][areas.size()]);
-  std::string renda_query = "SELECT * FROM renda;";
-  pqxx::result R_renda(N.exec(renda_query));
-  std::string idade_query = "SELECT * FROM idade;";
-  pqxx::result R_idade(N.exec(idade_query));
-  std::string dict_idades_query = "SELECT * FROM dict_idades;";
-  pqxx::result R_dict_idades(N.exec(dict_idades_query));
-  std::default_random_engine generator_u;
-  std::uniform_real_distribution<double> uniform_dist(0., 1.);
-  
-  for (unsigned i = 0; i != areas.size(); ++i) {
-    std::vector<double> share_pop;
-    std::string pop_query = "SELECT populacao FROM populacao WHERE id = ";
-    for (const auto& estado : areas[i]) {
-      pqxx::result R_pop(N.exec(pop_query + std::to_string(estado) + ";"));
-      auto c = R_pop.begin();
-      share_pop.push_back(c[0].as<double>());
-    }
-    double share_pop_total = std::accumulate(share_pop.begin(), share_pop.end(), 0.);
-    std::vector<double> share_pop_acum;
-    share_pop_acum.push_back(0.);
-    for (unsigned j = 1; j != share_pop.size(); ++j) {
-      share_pop_acum.push_back(std::accumulate(share_pop.begin(),\
-					       share_pop.begin() + j, 0.) /\
-			       share_pop_total);
-    }
-    share_pop_acum.push_back(1.+1e-6);
-    // select estado from a given area or mkt
-    for (unsigned draw_counter = 0; draw_counter < num_draws; ++draw_counter) {
-      double draw_estado = uniform_dist(generator_u);
-      unsigned num_estado;
-      for (unsigned j = 0; j != share_pop_acum.size()-1; ++j) {
-	if (draw_estado >= share_pop_acum[j] && draw_estado <\
-	    share_pop_acum[j+1])
-	  num_estado = areas[i][j];
-      }
-      
-      // take draw for renda
-      auto c = R_renda.begin() + num_estado - 1;
-      double draw_renda = uniform_dist(generator_u);
-      double renda;
-      for (unsigned j = 0; j < num_bins_renda; ++j) {
-	if (j == 0 && draw_renda < c[num_bins_renda+1].as<double>()) {
-	  renda = c[j+1].as<double>();
-	  j = num_bins_renda;
-	} else if (j == num_bins_renda-1 && draw_renda >=\
-		   c[num_bins_renda+j].as<double>()) {
-	  renda = c[j+1].as<double>();
-	} else if (draw_renda >= c[num_bins_renda+j].as<double>() &&\
-		   draw_renda < c[num_bins_renda+j+1].as<double>()) {
-	  renda = c[j+1].as<double>();
-	  j = num_bins_renda;
-	}
-      }
-      
-      // take draw for idade
-      auto c2 = R_idade.begin() + num_estado - 1;
-      double draw_idade = uniform_dist(generator_u);
-      double idade;
-      for (unsigned j = 0; j < num_bins_idade; ++j) {
-	if (j == 0 && draw_idade < c2[j+1].as<double>()) {
-	  auto c3 = R_dict_idades.begin() + j;
-	  idade = c3[1].as<double>();
-	  j = num_bins_idade;
-	} else if (j == num_bins_idade-1 && draw_idade >=\
-		   c2[j].as<double>()) {
-	  auto c3 = R_dict_idades.begin() + j;
-	  idade = c3[1].as<double>();
-	} else if (draw_idade >= c2[j].as<double>() &&\
-		   draw_idade < c2[j+1].as<double>()) {
-	  auto c3 = R_dict_idades.begin() + j;
-	  idade = c3[1].as<double>();
-	  j = num_bins_idade;
-	}
-      }
-
-      // fill D
-      D[draw_counter][0][i] = std::log(renda);
-      D[draw_counter][1][i] = std::pow(D[draw_counter][0][i], 2);
-      D[draw_counter][2][i] = idade;
-      auto debug = false;
-      if (debug)
-	std::cout << "debug" << std::endl; //DEBUG
-    }
-  }
-  N.commit();
 }
+
+void GenArrays::elim_nans()
+{
+  std::vector<unsigned> nan_rows;
+  for (unsigned i = 0; i != S.size(); ++i) {
+    if (std::isnan(S(i))) {
+      nan_rows.push_back(i);
+    }
+  }
+  ublas::vector<double> S_tmp;
+  S_tmp.resize(S.size() - nan_rows.size());
+  ublas::vector<double> delta_tmp;
+  delta_tmp.resize(S.size() - nan_rows.size());
+  ublas::matrix<double> X1_tmp;
+  X1_tmp.resize(S.size() - nan_rows.size(), X1.size2());
+  ublas::matrix<double> X2_tmp;
+  X2_tmp.resize(S.size() - nan_rows.size(), X2.size2());
+  ublas::matrix<double> Z_tmp;
+  Z_tmp.resize(S.size() - nan_rows.size(), Z.size2());
+  ublas::vector<unsigned> mkt_id_tmp;
+  mkt_id_tmp.resize(S.size() - nan_rows.size());
+  unsigned j = 0;
+  unsigned k = 0;
+  for (unsigned i = 0; i != S.size(); ++i) {
+    if (i != nan_rows[k]) {
+      S_tmp(j) = S(i);
+      delta_tmp(j) = delta(i);
+      for (unsigned col = 0; col != X1.size2(); ++col) {
+	X1_tmp(j, col) = X1(i, col);
+      }
+      for (unsigned col = 0; col != X2.size2(); ++col) {
+	X2_tmp(j, col) = X2(i, col);
+      }
+      for (unsigned col = 0; col != Z.size2(); ++col) {
+	Z_tmp(j, col) = Z(i, col);
+      }
+      mkt_id_tmp(j) = mkt_id(i);
+    ++j;
+    } else {
+      ++k;
+    }
+  }
+  S.clear();
+  delta.clear();
+  X1.clear();
+  X2.clear();
+  Z.clear();
+  mkt_id.clear();
+  S = S_tmp;
+  delta = delta_tmp;
+  X1 = X1_tmp;
+  X2 = X2_tmp;
+  Z = Z_tmp;
+  mkt_id = mkt_id_tmp;
+}		     
