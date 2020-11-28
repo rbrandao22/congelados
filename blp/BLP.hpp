@@ -37,6 +37,7 @@ public:
     ar & X2;
     ar & Z;
     ar & mkt_id;
+    ar & area_id;
   }
   void allocate();
   void calc_objective(std::vector<double> theta2_);
@@ -48,6 +49,7 @@ private:
   ublas::matrix<double> X2;
   ublas::matrix<double> Z;
   ublas::vector<unsigned> mkt_id;
+  ublas::vector<unsigned> area_id;
   // random coeff draws
   boost::multi_array<double, 3> v;
   boost::multi_array<double, 3> D;

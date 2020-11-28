@@ -81,12 +81,14 @@ GenArrays::GenArrays(const unsigned num_periods, const\
   }
 
 
-  /// fill X1 - precos, area dummies e brand dummies
+  /// fill X1 - precos, area dummies e brand dummies & area_id
   X1.resize(num_prods * num_mkts, 1 + areas.size() + num_prods - 2);
+  area_id.resize(num_prods * num_mkts);
   i = 0;
   unsigned area;
   for (unsigned t = 0; t != num_mkts; ++t) {
     area = t / num_periods;
+    area_id[i] = area;
     for (unsigned j = 0; j != num_prods; ++j) {
       // precos
       X1(i, 0) = X2(i, 0);

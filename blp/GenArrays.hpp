@@ -25,6 +25,7 @@ public:
     X2.clear();
     Z.clear();
     mkt_id.clear();
+    area_id.clear();
   }
   template<class Archive>
   void serialize(Archive & ar, const unsigned int version)
@@ -35,6 +36,7 @@ public:
     ar & X2;
     ar & Z;
     ar & mkt_id;
+    ar & area_id;
   }
   void elim_nans();
 
@@ -47,6 +49,7 @@ private:
   ublas::matrix<double> X2;
   ublas::matrix<double> Z;
   ublas::vector<unsigned> mkt_id;
+  ublas::vector<unsigned> area_id;
 };
 
 #endif

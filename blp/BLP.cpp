@@ -32,19 +32,12 @@ BLP::BLP(const unsigned num_periods, const unsigned num_draws, const unsigned\
   }
   pqxx::nontransaction N(C);
 
-  /// draw v
+  /// draw v & D
+  
+  // allocate and grab from db
   v.resize(boost::extents[num_draws][1][num_periods]);
   std::default_random_engine generator_n;
   std::normal_distribution<double> normal_dist(0., 1.);
-  for (unsigned i = 0; i != num_draws; ++i) {
-    for (unsigned j = 0; j != num_periods; ++j) {
-      v[i][0][j] = normal_dist(generator_n);
-    }
-  }
-
-  /// draw D
-  
-  // allocate and grab from db
   D.resize(boost::extents[num_draws][3][areas.size()]);
   std::string renda_query = "SELECT * FROM renda;";
   pqxx::result R_renda(N.exec(renda_query));
@@ -121,7 +114,8 @@ BLP::BLP(const unsigned num_periods, const unsigned num_draws, const unsigned\
 	}
       }
 
-      // fill D
+      // fill v & D
+      v[draw_counter][0][i] = normal_dist(generator_n);
       D[draw_counter][0][i] = std::log(renda);
       D[draw_counter][1][i] = std::pow(D[draw_counter][0][i], 2);
       D[draw_counter][2][i] = idade;
@@ -138,11 +132,22 @@ void BLP::allocate()
 void BLP::calc_objective(std::vector<double> theta2_)
 {
   theta2 = theta2_;
-  auto s_calc_L = [&] (unsigned begin, unsigned end) {
-		    for (unsigned i = begin; i < end; ++i) {
-		      s_calc[i] = 0; //CONTINUE
-		    }
-		  };
+  unsigned ns = v.shape()[1];
+  auto s_calc1_L = [&] (unsigned begin, unsigned end) {
+		     for (unsigned i =  begin; i < end; ++i) {
+		       for (unsigned jt = 0; jt < S.size(); ++jt) {
+			 s_calc[jt] = std::exp(delta(jt) + X2(jt) * (theta2[0] *\
+					       v[i][0][area_id[jt]]\
+					       + theta2[1] * D[i][0][area_id[jt]]\
+					       + theta2[2] * D[i][1][area_id[jt]]\
+					       + theta2[3] * D[i][2][area_id[jt]]\
+					       ));
+			 // CONTINUE divide by mkt totals and correctly distribute
+			 // computation (s_calc as vector of ublas vectors w/ size
+			 // according to number of threads
+		       }
+		     }
+		   };
   double x = 0;
   std::cout << "debug x is: " << x << std::endl;
   ++x;
