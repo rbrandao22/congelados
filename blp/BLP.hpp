@@ -39,6 +39,7 @@ public:
     ar & mkt_id;
     ar & area_id;
   }
+  unsigned num_threads;
   void allocate();
   void calc_objective(std::vector<double> theta2_);
   
@@ -56,7 +57,7 @@ private:
   // params
   std::vector<double> theta2;
   // calc objs
-  ublas::vector<double> s_calc;
+  std::vector<ublas::vector<double>> s_calc;
 };
 
 #endif

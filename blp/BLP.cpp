@@ -122,33 +122,40 @@ BLP::BLP(const unsigned num_periods, const unsigned num_draws, const unsigned\
     }
   }
   N.commit();
+  
+  /// init parallel params
+  unsigned hardware_threads = std::thread::hardware_concurrency();
+  num_threads = std::min(hardware_threads != 0 ? hardware_threads : 1,\
+			 max_threads);
 }
 
 void BLP::allocate()
 {
-  s_calc.resize(S.size());
+  ublas::vector<double> auxV;
+  auxV.resize(S.size());
+  for (unsigned i = 0; i != num_threads; ++i) {
+    s_calc.push_back(auxV);
+  }
 }
 
 void BLP::calc_objective(std::vector<double> theta2_)
 {
   theta2 = theta2_;
   unsigned ns = v.shape()[1];
-  auto s_calc1_L = [&] (unsigned begin, unsigned end) {
+  auto s_calc1_L = [&] (unsigned th, unsigned begin, unsigned end) {
 		     for (unsigned i =  begin; i < end; ++i) {
 		       for (unsigned jt = 0; jt < S.size(); ++jt) {
-			 s_calc[jt] = std::exp(delta(jt) + X2(jt) * (theta2[0] *\
-					       v[i][0][area_id[jt]]\
-					       + theta2[1] * D[i][0][area_id[jt]]\
-					       + theta2[2] * D[i][1][area_id[jt]]\
-					       + theta2[3] * D[i][2][area_id[jt]]\
-					       ));
-			 // CONTINUE divide by mkt totals and correctly distribute
-			 // computation (s_calc as vector of ublas vectors w/ size
-			 // according to number of threads
+			 s_calc[th][jt] = std::exp(delta(jt) + X2(jt) *\
+						   (theta2[0] *\
+						    v[i][0][area_id[jt]] +\
+						    theta2[1] *\
+						    D[i][0][area_id[jt]] +\
+						    theta2[2] *\
+						    D[i][1][area_id[jt]] +\
+						    theta2[3] *\
+						    D[i][2][area_id[jt]]));
 		       }
 		     }
+		     // CONTINUE divide by mkt totals and take average from threads
 		   };
-  double x = 0;
-  std::cout << "debug x is: " << x << std::endl;
-  ++x;
 }
