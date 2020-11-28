@@ -16,9 +16,9 @@ class BLP
 {
 
 public:
-  BLP(const unsigned num_periods, const unsigned num_draws, const unsigned\
-      num_bins_renda, const unsigned num_bins_idade, const\
-      std::vector<std::vector<unsigned>> areas);
+  BLP(const unsigned num_periods, const unsigned num_bins_renda, const unsigned\
+      num_bins_idade, unsigned ns, const std::vector<std::vector<unsigned>>\
+      areas, const unsigned max_threads=64);
   ~BLP()
   {
     S.clear();
@@ -39,6 +39,7 @@ public:
     ar & mkt_id;
     ar & area_id;
   }
+  unsigned ns;
   unsigned num_threads;
   void allocate();
   void calc_objective(std::vector<double> theta2_);

@@ -27,9 +27,9 @@ int main(int argc, char* argv[])
   /* PARAMETERS */
 
   const unsigned num_periods = 18;
-  const unsigned num_draws = 10000;
   const unsigned num_bins_renda = 7;
   const unsigned num_bins_idade = 12;
+  unsigned ns = 10000; // num of draws
   // Geographic segmentation (ver database, dicionario, p/ estados)
   // Nielsen data: Área 1 {CE, RN, PB, PE, AL, SE, BA}
   //               Área 2 {MG, ES, interior RJ}
@@ -102,7 +102,7 @@ int main(int argc, char* argv[])
 	     (argc > 2 && std::strcmp(argv[1], "genarrays") == 0 &&\
 	      std::strcmp(argv[2], "estimation") == 0)) {
     // instantiate
-    BLP inst_BLP(num_periods, num_draws, num_bins_renda, num_bins_idade, areas);
+    BLP inst_BLP(num_periods, num_bins_renda, num_bins_idade, ns, areas);
     // deserialize
     {
         std::ifstream ifs(persist_file);

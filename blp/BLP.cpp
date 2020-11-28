@@ -17,9 +17,9 @@
 namespace ublas = boost::numeric::ublas;
 
 
-BLP::BLP(const unsigned num_periods, const unsigned num_draws, const unsigned\
-	 num_bins_renda, const unsigned num_bins_idade, const\
-	 std::vector<std::vector<unsigned>> areas)
+BLP::BLP(const unsigned num_periods, const unsigned num_bins_renda, const\
+	 unsigned num_bins_idade, unsigned ns_, const\
+	 std::vector<std::vector<unsigned>> areas, const unsigned max_threads)
 {
   pqxx::connection C("dbname = congelados user = postgres password = passwd"\
           " hostaddr = 127.0.0.1 port = 5432");
@@ -32,13 +32,15 @@ BLP::BLP(const unsigned num_periods, const unsigned num_draws, const unsigned\
   }
   pqxx::nontransaction N(C);
 
+  ns = ns_; // num of draws
+  
   /// draw v & D
   
   // allocate and grab from db
-  v.resize(boost::extents[num_draws][1][num_periods]);
+  v.resize(boost::extents[ns][1][num_periods]);
   std::default_random_engine generator_n;
   std::normal_distribution<double> normal_dist(0., 1.);
-  D.resize(boost::extents[num_draws][3][areas.size()]);
+  D.resize(boost::extents[ns][3][areas.size()]);
   std::string renda_query = "SELECT * FROM renda;";
   pqxx::result R_renda(N.exec(renda_query));
   std::string idade_query = "SELECT * FROM idade;";
@@ -66,7 +68,7 @@ BLP::BLP(const unsigned num_periods, const unsigned num_draws, const unsigned\
     }
     share_pop_acum.push_back(1.+1e-6);
     // select estado from a given area or mkt
-    for (unsigned draw_counter = 0; draw_counter < num_draws; ++draw_counter) {
+    for (unsigned draw_counter = 0; draw_counter < ns; ++draw_counter) {
       double draw_estado = uniform_dist(generator_u);
       unsigned num_estado;
       for (unsigned j = 0; j != share_pop_acum.size()-1; ++j) {
@@ -141,8 +143,10 @@ void BLP::allocate()
 void BLP::calc_objective(std::vector<double> theta2_)
 {
   theta2 = theta2_;
-  unsigned ns = v.shape()[1];
-  auto s_calc1_L = [&] (unsigned th, unsigned begin, unsigned end) {
+  std::vector<std::thread> threads;
+  unsigned th, j, k, block_size;
+  block_size = ns / num_threads;
+  auto s_calc_L = [&] (unsigned th, unsigned begin, unsigned end) {
 		     for (unsigned i =  begin; i < end; ++i) {
 		       for (unsigned jt = 0; jt < S.size(); ++jt) {
 			 s_calc[th][jt] = std::exp(delta(jt) + X2(jt) *\
@@ -158,4 +162,14 @@ void BLP::calc_objective(std::vector<double> theta2_)
 		     }
 		     // CONTINUE divide by mkt totals and take average from threads
 		   };
+  j = 0;
+  for (th = 0; th < (num_threads - 1); ++th) {
+    k = j + block_size;
+    threads.push_back(std::thread(s_calc_L, th, j, k));
+    j = k;
+  }
+  threads.push_back(std::thread(s_calc_L, th, j, ns));
+  for (auto& thread : threads) {
+    thread.join();
+  }
 }
