@@ -136,6 +136,7 @@ void BLP::allocate()
   ublas::vector<double> auxV;
   auxV.resize(S.size());
   for (unsigned i = 0; i != num_threads; ++i) {
+    s_aux.push_back(auxV);
     s_calc.push_back(auxV);
   }
 }
@@ -149,7 +150,7 @@ void BLP::calc_objective(std::vector<double> theta2_)
   auto s_calc_L = [&] (unsigned th, unsigned begin, unsigned end) {
 		     for (unsigned i =  begin; i < end; ++i) {
 		       for (unsigned jt = 0; jt < S.size(); ++jt) {
-			 s_calc[th][jt] = std::exp(delta(jt) + X2(jt) *\
+			 s_aux[th][jt] = std::exp(delta(jt) + X2(jt) *\
 						   (theta2[0] *\
 						    v[i][0][area_id[jt]] +\
 						    theta2[1] *\
@@ -159,8 +160,34 @@ void BLP::calc_objective(std::vector<double> theta2_)
 						    theta2[3] *\
 						    D[i][2][area_id[jt]]));
 		       }
+		       double mkt_sum = 0;
+		       unsigned aux_mkt_id = 0;
+		       unsigned aux_init_jt = 0;
+		       for (unsigned jt = 0; jt < S.size(); ++jt) {
+		         if (aux_mkt_id == mkt_id[jt]) {
+			   mkt_sum += s_aux[th][jt];
+		         } else {
+			   for (unsigned jt2 = aux_init_jt; jt2 < jt; ++jt2) {
+			     s_aux[th][jt2] /= mkt_sum;
+			   }
+			   mkt_sum = 0;
+		       	   aux_init_jt = jt;
+		       	   aux_mkt_id = mkt_id[jt];
+		         }
+		         if (jt == S.size() - 1) {
+			   for (unsigned jt2 = aux_init_jt; jt2 <= jt; ++jt2) {
+			     s_aux[th][jt2] /= mkt_sum;
+			   }
+		         }
+		       }
+		       for (unsigned jt = 0; jt < S.size(); ++jt) {
+			 if (i == begin) {
+			   s_calc[th][jt] = s_aux[th][jt];
+			 } else {
+			   s_calc[th][jt] += s_aux[th][jt];
+			 }
+		       }
 		     }
-		     // CONTINUE divide by mkt totals and take average from threads
 		   };
   j = 0;
   for (th = 0; th < (num_threads - 1); ++th) {
@@ -172,4 +199,10 @@ void BLP::calc_objective(std::vector<double> theta2_)
   for (auto& thread : threads) {
     thread.join();
   }
+  // take average from threads
+  for (th = 1; th < num_threads; ++th) {
+    s_calc[0] += s_calc[th];
+  }
+  s_calc[0] /= ns;
+  th++; //DEBUG only
 }

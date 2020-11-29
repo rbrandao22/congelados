@@ -58,6 +58,7 @@ private:
   // params
   std::vector<double> theta2;
   // calc objs
+  std::vector<ublas::vector<double>> s_aux;
   std::vector<ublas::vector<double>> s_calc;
 };
 
