@@ -1,10 +1,9 @@
-#include <algorithm>
-#include <cassert>
 #include <chrono>
 #include <cstring>
 #include <fstream>
 #include <limits>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -29,7 +28,6 @@ int main(int argc, char* argv[])
   const unsigned num_periods = 18;
   const unsigned num_bins_renda = 7;
   const unsigned num_bins_idade = 12;
-  unsigned ns = 10000; // num of draws
   // Geographic segmentation (ver database, dicionario, p/ estados)
   // Nielsen data: Área 1 {CE, RN, PB, PE, AL, SE, BA}
   //               Área 2 {MG, ES, interior RJ}
@@ -58,13 +56,14 @@ int main(int argc, char* argv[])
   const unsigned max_iter = {1000000};
   */  
   //// Estimation params
+  unsigned ns = 100; // num of draws
   std::vector<double> theta2 = {.01, .01, .01, .01};
+  double contract_tol = {1e-2};
   /*
   // minimum 'observed shares' for numerical feasibility
   const double min_share = {1e-20};
   /// BLP contraction
-  // tolerance (BJ10 suggests 1e-12)
-  const double contract_tol = {1e-12};
+
   // maximum number of iterations
   const unsigned max_iter_contract = {1000};
   /// Newton Raphson params
@@ -102,7 +101,8 @@ int main(int argc, char* argv[])
 	     (argc > 2 && std::strcmp(argv[1], "genarrays") == 0 &&\
 	      std::strcmp(argv[2], "estimation") == 0)) {
     // instantiate
-    BLP inst_BLP(num_periods, num_bins_renda, num_bins_idade, ns, areas);
+    BLP inst_BLP(num_periods, num_bins_renda, num_bins_idade, areas, ns, theta2,\
+		 contract_tol);
     // deserialize
     {
         std::ifstream ifs(persist_file);
@@ -112,7 +112,7 @@ int main(int argc, char* argv[])
 	ifs.close();
     }
     inst_BLP.allocate();
-    inst_BLP.calc_objective(theta2);
+    inst_BLP.gmm();
     /*
     inst_BLP.allocate();
     // GMM

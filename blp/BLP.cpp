@@ -10,6 +10,9 @@
 #include <thread>
 #include <vector>
 
+#include <boost/numeric/ublas/io.hpp>
+#include <boost/numeric/ublas/lu.hpp>
+#include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/vector.hpp>
 
 #include "BLP.hpp"
@@ -18,8 +21,9 @@ namespace ublas = boost::numeric::ublas;
 
 
 BLP::BLP(const unsigned num_periods, const unsigned num_bins_renda, const\
-	 unsigned num_bins_idade, unsigned ns_, const\
-	 std::vector<std::vector<unsigned>> areas, const unsigned max_threads)
+	 unsigned num_bins_idade, const std::vector<std::vector<unsigned>> areas,\
+	 unsigned ns_, std::vector<double> theta2_, double contract_tol_,\
+	 const unsigned max_threads)
 {
   pqxx::connection C("dbname = congelados user = postgres password = passwd"\
           " hostaddr = 127.0.0.1 port = 5432");
@@ -32,7 +36,13 @@ BLP::BLP(const unsigned num_periods, const unsigned num_bins_renda, const\
   }
   pqxx::nontransaction N(C);
 
-  ns = ns_; // num of draws
+  // initialization of vars
+  ns = ns_;  // num of draws
+  theta2.resize(theta2_.size());  // initial guess for theta2
+  for (unsigned i = 0; i != theta2.size(); ++i) {
+    theta2[i] = theta2_[i];
+  }
+  contract_tol = contract_tol_;
   
   /// draw v & D
   
@@ -139,11 +149,12 @@ void BLP::allocate()
     s_aux.push_back(auxV);
     s_calc.push_back(auxV);
   }
+  exp_delta1.resize(S.size());
+  exp_delta2.resize(S.size());
 }
 
-void BLP::calc_objective(std::vector<double> theta2_)
+void BLP::calc_shares()
 {
-  theta2 = theta2_;
   std::vector<std::thread> threads;
   unsigned th, j, k, block_size;
   block_size = ns / num_threads;
@@ -204,5 +215,92 @@ void BLP::calc_objective(std::vector<double> theta2_)
     s_calc[0] += s_calc[th];
   }
   s_calc[0] /= ns;
-  th++; //DEBUG only
+}
+
+void BLP::contraction(bool increase_tol)
+{
+  // increase tol params
+  unsigned iters_nbr1 = 50;  // iterations before first increase
+  unsigned iters_nbr2 = 20;  // number of iters for further increases
+  unsigned tol_factor = 1e1;  // increase factor
+  // init threads
+  std::vector<std::thread> threads;
+  unsigned j, k, block_size;
+  block_size = S.size() / num_threads;
+  // contraction lambda function
+  auto contract_L = [&] (unsigned begin, unsigned end) {
+		      for (unsigned i = begin; i < end; ++i) {
+			exp_delta2[i] = exp_delta1[i] * S[i] / s_calc[0][i];
+			if (std::isnan(exp_delta2[i])) {
+			  throw std::runtime_error("NAN in contract_L, check");
+			}
+			delta[i] = std::log(exp_delta2[i]);
+		      }
+		    };
+  // initialization of exp_delta
+  for (unsigned i = 0; i != delta.size(); ++i) {
+    exp_delta1[i] = std::exp(delta[i]);
+  }
+  bool conv_check = false;
+  unsigned iter_count = 0;
+  while (!conv_check) {
+    // calc shares
+    this->calc_shares();
+    // contraction step
+    threads.clear();
+    j = 0;
+    for (unsigned i = 0; i < num_threads - 1; ++i) {
+      k = j + block_size;
+      threads.push_back(std::thread(contract_L, j , k));
+      j = k;
+    }
+    threads.push_back(std::thread(contract_L, j, S.size()));
+    for (auto& thread : threads) {
+      thread.join();
+    }
+    // check for convergence
+    for (unsigned i = 0; i <= exp_delta2.size(); ++i) {
+      if (i == exp_delta2.size()) {
+	conv_check = true;
+	break;
+      }
+      if (std::abs(exp_delta2[i] - exp_delta1[i]) < contract_tol) {
+	continue;
+      } else {
+	break;
+      }
+    }
+    ++iter_count;
+    if (iter_count == iters_nbr1 || (iter_count > iters_nbr1 && (iter_count -\
+								 iters_nbr1) %\
+				     iters_nbr2 == 0)) {
+      contract_tol *= tol_factor;
+    }
+  }
+}
+
+void BLP::calc_phi()
+{
+  phi = ublas::prod(ublas::trans(Z), Z);
+  phi_inv = ublas::identity_matrix<double> (phi.size1());
+  ublas::permutation_matrix<size_t> pm(phi.size1());
+  ublas::lu_factorize(phi, pm);
+  ublas::lu_substitute(phi, pm, phi_inv);
+  phi_inv *= -1;
+}
+
+void BLP::calc_theta1()
+{
+  this->calc_phi();
+  ublas::matrix<double> aux_X1;
+  aux_X1 = ublas::prod(phi, phi_inv); //ublas::prod(ublas::prod(ublas::prod(ublas::prod(ublas::trans(X1), Z), phi_inv), ublas::trans(Z)), X1);
+  unsigned x = 0; //DEBUG
+}
+
+void BLP::gmm()
+{
+  this->contraction();
+  this->calc_theta1();
+  //  auto error_calc
+  //  omega = delta - ublas::prod(X, theta1);
 }

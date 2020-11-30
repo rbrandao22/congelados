@@ -165,6 +165,8 @@ void GenArrays::elim_nans()
   Z_tmp.resize(S.size() - nan_rows.size(), Z.size2());
   ublas::vector<unsigned> mkt_id_tmp;
   mkt_id_tmp.resize(S.size() - nan_rows.size());
+  ublas::vector<unsigned> area_id_tmp;
+  area_id_tmp.resize(S.size() - nan_rows.size());
   unsigned j = 0;
   unsigned k = 0;
   for (unsigned i = 0; i != S.size(); ++i) {
@@ -181,7 +183,8 @@ void GenArrays::elim_nans()
 	Z_tmp(j, col) = Z(i, col);
       }
       mkt_id_tmp(j) = mkt_id(i);
-    ++j;
+      area_id_tmp(j) = area_id(i);
+      ++j;
     } else {
       ++k;
     }
@@ -198,4 +201,5 @@ void GenArrays::elim_nans()
   X2 = X2_tmp;
   Z = Z_tmp;
   mkt_id = mkt_id_tmp;
+  area_id = area_id_tmp;
 }		     

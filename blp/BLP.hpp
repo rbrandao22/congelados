@@ -17,8 +17,9 @@ class BLP
 
 public:
   BLP(const unsigned num_periods, const unsigned num_bins_renda, const unsigned\
-      num_bins_idade, unsigned ns, const std::vector<std::vector<unsigned>>\
-      areas, const unsigned max_threads=64);
+      num_bins_idade, const std::vector<std::vector<unsigned>> areas, unsigned\
+      ns_, std::vector<double> theta2_, double contract_tol_, const unsigned\
+      max_threads=64);
   ~BLP()
   {
     S.clear();
@@ -27,6 +28,7 @@ public:
     X2.clear();
     Z.clear();
     mkt_id.clear();
+    area_id.clear();
   }
   template<class Archive>
   void serialize(Archive & ar, const unsigned int version)
@@ -41,8 +43,13 @@ public:
   }
   unsigned ns;
   unsigned num_threads;
+  double contract_tol;
   void allocate();
-  void calc_objective(std::vector<double> theta2_);
+  void calc_shares();
+  void contraction(bool increase_tol=true);
+  void calc_phi();
+  void calc_theta1();
+  void gmm();
   
 private:
   ublas::vector<double> S;
@@ -56,10 +63,16 @@ private:
   boost::multi_array<double, 3> v;
   boost::multi_array<double, 3> D;
   // params
-  std::vector<double> theta2;
+  ublas::vector<double> theta1;
+  ublas::vector<double> theta2;
   // calc objs
   std::vector<ublas::vector<double>> s_aux;
   std::vector<ublas::vector<double>> s_calc;
+  ublas::vector<double> exp_delta1;
+  ublas::vector<double> exp_delta2;
+  ublas::matrix<double> phi;
+  ublas::matrix<double> phi_inv;
+  ublas::vector<double> omega;
 };
 
 #endif
