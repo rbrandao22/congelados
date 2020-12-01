@@ -279,7 +279,7 @@ void BLP::contraction(bool increase_tol)
   }
 }
 
-void BLP::calc_phi()
+void BLP::calc_phis()
 {
   phi = ublas::prod(ublas::trans(Z), Z);
   phi_inv = ublas::identity_matrix<double> (phi.size1());
@@ -291,16 +291,34 @@ void BLP::calc_phi()
 
 void BLP::calc_theta1()
 {
-  this->calc_phi();
-  ublas::matrix<double> aux_X1;
-  aux_X1 = ublas::prod(phi, phi_inv); //ublas::prod(ublas::prod(ublas::prod(ublas::prod(ublas::trans(X1), Z), phi_inv), ublas::trans(Z)), X1);
-  unsigned x = 0; //DEBUG
+  this->calc_phis();
+  ublas::matrix<double> aux_mat1;
+  ublas::matrix<double> aux_mat1_inv;
+  ublas::matrix<double> aux_mat2;
+  // aux_mat1 = X1'Z*phi_inv*Z'X1
+  aux_mat1 = ublas::prod(ublas::trans(X1), Z);
+  aux_mat1 = ublas::prod(aux_mat1, phi_inv);
+  aux_mat1 = ublas::prod(aux_mat1, ublas::trans(Z));
+  aux_mat1 = ublas::prod(aux_mat1, X1);
+  aux_mat1_inv = ublas::identity_matrix<double> (aux_mat1.size1());
+  ublas::permutation_matrix<size_t> pm(aux_mat1.size1());
+  ublas::lu_factorize(aux_mat1, pm);
+  ublas::lu_substitute(aux_mat1, pm, aux_mat1_inv);
+  aux_mat1_inv *= -1;
+  // aux_mat2 = aux_mat1_inv*X1'Z*phi_inv*Z'
+  aux_mat2 = ublas::prod(aux_mat1_inv, ublas::trans(X1));
+  aux_mat2 = ublas::prod(aux_mat2, Z);
+  aux_mat2 = ublas::prod(aux_mat2, phi_inv);
+  aux_mat2 = ublas::prod(aux_mat2, ublas::trans(Z));
+  // theta1 = aux_mat2*delta
+  theta1 = ublas::prod(aux_mat2, delta);
 }
 
 void BLP::gmm()
 {
   this->contraction();
   this->calc_theta1();
-  //  auto error_calc
-  //  omega = delta - ublas::prod(X, theta1);
+  // auto error_calc
+  omega = delta - ublas::prod(X1, theta1);
+  unsigned x = 0; //DEBUG
 }

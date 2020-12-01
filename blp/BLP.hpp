@@ -29,6 +29,13 @@ public:
     Z.clear();
     mkt_id.clear();
     area_id.clear();
+    theta1.clear();
+    theta2.clear();
+    exp_delta1.clear();
+    exp_delta2.clear();
+    phi.clear();
+    phi_inv.clear();
+    omega.clear();
   }
   template<class Archive>
   void serialize(Archive & ar, const unsigned int version)
@@ -47,7 +54,7 @@ public:
   void allocate();
   void calc_shares();
   void contraction(bool increase_tol=true);
-  void calc_phi();
+  void calc_phis();
   void calc_theta1();
   void gmm();
   
