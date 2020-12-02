@@ -1,5 +1,5 @@
 CXX=g++
-CXXFLAGS=-std=c++17 -Wall -g3 -I /usr/local/include/boost_1_73_0
+CXXFLAGS=-std=c++17 -Wall -g3 -I /usr/local/include/boost_1_73_0 -I /usr/local/include/Eigen
 LDFLAGS=-lpqxx -lpq -lboost_serialization -pthread
 
 AUX_OBJS=BLP.o GenArrays.o

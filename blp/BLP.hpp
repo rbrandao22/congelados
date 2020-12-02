@@ -56,6 +56,7 @@ public:
   void contraction(bool increase_tol=true);
   void calc_phis();
   void calc_theta1();
+  void calc_Ddelta();
   void gmm();
   
 private:
@@ -72,7 +73,7 @@ private:
   // params
   ublas::vector<double> theta1;
   ublas::vector<double> theta2;
-  // calc objs
+  /// calc objs
   std::vector<ublas::vector<double>> s_aux;
   std::vector<ublas::vector<double>> s_calc;
   ublas::vector<double> exp_delta1;
@@ -80,6 +81,14 @@ private:
   ublas::matrix<double> phi;
   ublas::matrix<double> phi_inv;
   ublas::vector<double> omega;
+  // grad specific
+  ublas::matrix<double> s_ijt;
+  ublas::matrix<double> Ddelta;
+  std::vector<ublas::matrix<double>> Ddelta1;
+  std::vector<ublas::matrix<double>> Ddelta2;
+  std::vector<ublas::matrix<double>> Ddelta1_aux;
+  std::vector<ublas::matrix<double>> Ddelta2a_aux;
+  std::vector<ublas::matrix<double>> Ddelta2b_aux;
 };
 
 #endif

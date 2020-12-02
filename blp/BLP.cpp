@@ -14,6 +14,7 @@
 #include <boost/numeric/ublas/lu.hpp>
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/vector.hpp>
+#include <Eigen/Dense>
 
 #include "BLP.hpp"
 
@@ -47,7 +48,7 @@ BLP::BLP(const unsigned num_periods, const unsigned num_bins_renda, const\
   /// draw v & D
   
   // allocate and grab from db
-  v.resize(boost::extents[ns][1][num_periods]);
+  v.resize(boost::extents[ns][1][areas.size()]);
   std::default_random_engine generator_n;
   std::normal_distribution<double> normal_dist(0., 1.);
   D.resize(boost::extents[ns][3][areas.size()]);
@@ -151,6 +152,22 @@ void BLP::allocate()
   }
   exp_delta1.resize(S.size());
   exp_delta2.resize(S.size());
+  s_ijt.resize(ns, S.size());
+  ublas::matrix<double> auxM1;
+  auxM1.resize(S.size(), S.size());
+  for (unsigned i = 0; i != num_threads; ++i) {
+    Ddelta1.push_back(auxM1);
+    Ddelta1_aux.push_back(auxM1);
+  }
+  ublas::matrix<double> auxM2;
+  auxM2.resize(S.size(), theta2.size());
+  ublas::matrix<double> auxM3;
+  auxM3.resize(S.size(), 1);
+  for (unsigned i = 0; i != num_threads; ++i) {
+    Ddelta2.push_back(auxM2);
+    Ddelta2a_aux.push_back(auxM2);
+    Ddelta2b_aux.push_back(auxM3);
+  }
 }
 
 void BLP::calc_shares()
@@ -171,7 +188,7 @@ void BLP::calc_shares()
 						    theta2[3] *\
 						    D[i][2][area_id[jt]]));
 		       }
-		       double mkt_sum = 0;
+		       double mkt_sum = 0.;
 		       unsigned aux_mkt_id = 0;
 		       unsigned aux_init_jt = 0;
 		       for (unsigned jt = 0; jt < S.size(); ++jt) {
@@ -181,7 +198,7 @@ void BLP::calc_shares()
 			   for (unsigned jt2 = aux_init_jt; jt2 < jt; ++jt2) {
 			     s_aux[th][jt2] /= mkt_sum;
 			   }
-			   mkt_sum = 0;
+			   mkt_sum = 0.;
 		       	   aux_init_jt = jt;
 		       	   aux_mkt_id = mkt_id[jt];
 		         }
@@ -197,6 +214,7 @@ void BLP::calc_shares()
 			 } else {
 			   s_calc[th][jt] += s_aux[th][jt];
 			 }
+			 s_ijt(i, jt) = s_aux[th][jt];
 		       }
 		     }
 		   };
@@ -314,11 +332,127 @@ void BLP::calc_theta1()
   theta1 = ublas::prod(aux_mat2, delta);
 }
 
+void BLP::calc_Ddelta()
+{
+  std::vector<std::thread> threads;
+  unsigned th, j, k, block_size;
+  block_size = ns / num_threads;
+  auto Ddelta_L = [&] (unsigned th, unsigned begin, unsigned end) {
+		    for (unsigned i =  begin; i < end; ++i) {
+		      /* fill Ddelta1 (share derivatives w/ respect to delta) &
+		         compute Ddelta2 (share derivatives w/ respect to\
+                         theta2) summation terms */
+		      for (unsigned jt = 0; jt < S.size(); ++jt) {
+			for (unsigned jt2 = 0; jt2 < S.size(); ++jt2) {
+			  if (jt == jt2) {
+			    Ddelta1_aux[th](jt, jt2) = s_ijt(i, jt) * (1 -\
+			      s_ijt(i, jt));
+			  } else {
+			    Ddelta1_aux[th](jt, jt2) = -1 * s_ijt(i, jt) *\
+			      s_ijt(i, jt2);
+			  }
+			}
+			// Ddelta2 first terms
+			Ddelta2a_aux[th](jt, 0) = v[i][0][area_id[jt]] *\
+			  s_ijt(i, jt) * X2(jt);
+			Ddelta2a_aux[th](jt, 1) = D[i][0][area_id[jt]] *\
+			  s_ijt(i, jt) * X2(jt);
+			Ddelta2a_aux[th](jt, 2) = D[i][1][area_id[jt]] *\
+			  s_ijt(i, jt) * X2(jt);
+			Ddelta2a_aux[th](jt, 3) = D[i][2][area_id[jt]] *\
+			  s_ijt(i, jt) * X2(jt);
+			// second terms (under j summation, done below)
+			Ddelta2b_aux[th](jt, 0) = s_ijt(i, jt) * X2(jt);
+		      }
+		      // fill Ddelta2 
+		      unsigned aux_mkt_id = 0;
+		      unsigned aux_init_jt = 0;
+		      unsigned aux_end_jt;
+		      bool mkt_end = false;
+		      for (unsigned jt = 0; jt < S.size(); ++jt) {
+			if (mkt_id[jt] != aux_mkt_id || jt == 0) {
+			  aux_mkt_id = mkt_id[jt];
+			  aux_init_jt = jt;
+			  mkt_end = false;
+			  while (!mkt_end) {
+			    ++jt;
+			    if (mkt_id[jt] != aux_mkt_id || jt == S.size() - 1) {
+			      aux_end_jt = jt;
+			      mkt_end = true;
+			    }
+			  }
+			}
+			for (unsigned jt2 = aux_init_jt; jt2 < aux_end_jt;\
+			     ++jt2) {
+			  if (jt2 != jt) {
+			    Ddelta2a_aux[th](jt, 0) -= v[i][0][area_id[jt]] *\
+			      s_ijt(i, jt) * Ddelta2b_aux[th](jt2, 0);
+			    Ddelta2a_aux[th](jt, 1) -= D[i][0][area_id[jt]] *\
+			      s_ijt(i, jt) * Ddelta2b_aux[th](jt2, 0);
+			    Ddelta2a_aux[th](jt, 2) -= D[i][1][area_id[jt]] *\
+			      s_ijt(i, jt) * Ddelta2b_aux[th](jt2, 0);
+			    Ddelta2a_aux[th](jt, 3) -= D[i][2][area_id[jt]] *\
+			      s_ijt(i, jt) * Ddelta2b_aux[th](jt2, 0);
+			  }
+			}
+		      }
+		      for (unsigned jt = 0; jt < S.size(); ++jt) {
+			if (i == begin) {
+			  for (unsigned jt2 = 0; jt2 < S.size(); ++jt2) {
+			    Ddelta1[th](jt, jt2) = Ddelta1_aux[th](jt, jt2);
+			  }
+			  for (unsigned jt2 = 0; jt2 < theta2.size(); ++jt2) {
+			    Ddelta2[th](jt, jt2) = Ddelta2a_aux[th](jt, jt2);
+			  }
+			} else {
+			  for (unsigned jt2 = 0; jt2 < S.size(); ++jt2) {
+			    Ddelta1[th](jt, jt2) += Ddelta1_aux[th](jt, jt2);
+			  }
+			  for (unsigned jt2 = 0; jt2 < theta2.size(); ++jt2) {
+			    Ddelta2[th](jt, jt2) += Ddelta2a_aux[th](jt, jt2);
+			  }
+			}
+		      }
+		    }
+		  };
+  j = 0;
+  for (th = 0; th < (num_threads - 1); ++th) {
+    k = j + block_size;
+    threads.push_back(std::thread(Ddelta_L, th, j, k));
+    j = k;
+  }
+  threads.push_back(std::thread(Ddelta_L, th, j, ns));
+  for (auto& thread : threads) {
+    thread.join();
+  }
+  // take average from threads
+  for (th = 1; th < num_threads; ++th) {
+    Ddelta1[0] += Ddelta1[th];
+    Ddelta2[0] += Ddelta2[th];
+  }
+  Ddelta1[0] /= ns;
+  Ddelta2[0] /= ns;
+  // invert first matrix and multiply
+  /*Ddelta = ublas::identity_matrix<double> (Ddelta1[0].size1());
+  ublas::permutation_matrix<size_t> pm(Ddelta1[0].size1());
+  ublas::lu_factorize(Ddelta1[0], pm);
+  ublas::lu_substitute(Ddelta1[0], pm, Ddelta);
+  Ddelta = ublas::prod(Ddelta, Ddelta2[0]); */
+  Eigen::MatrixXd Ddelta1_eigen(S.size(), S.size());
+  for (unsigned jt = 0; jt < S.size(); ++jt) {
+    for (unsigned jt2 = 0; jt2 < S.size(); ++jt2) {
+      Ddelta1_eigen(jt, jt2) = Ddelta1[0](jt, jt2);
+    }
+  }
+  Ddelta1_eigen.inverse();
+  unsigned x = 0; //DEBUG
+}
+
 void BLP::gmm()
 {
   this->contraction();
   this->calc_theta1();
   // auto error_calc
   omega = delta - ublas::prod(X1, theta1);
-  unsigned x = 0; //DEBUG
+  this->calc_Ddelta();
 }

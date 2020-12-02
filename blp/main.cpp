@@ -28,14 +28,14 @@ int main(int argc, char* argv[])
   const unsigned num_periods = 18;
   const unsigned num_bins_renda = 7;
   const unsigned num_bins_idade = 12;
-  // Geographic segmentation (ver database, dicionario, p/ estados)
-  // Nielsen data: Área 1 {CE, RN, PB, PE, AL, SE, BA}
-  //               Área 2 {MG, ES, interior RJ}
-  //               Área 3 {área metropolitana RJ}
-  //               Área 4 {área metropolitana SP}
-  //               Área 5 {interior SP}
-  //               Área 6 {PR, SC, RS}
-  //               Área 7 {MS, GO, Brasília}
+  /* Geographic segmentation (ver database, dicionario, p/ estados)
+     Nielsen data: Área 1 {CE, RN, PB, PE, AL, SE, BA}
+                   Área 2 {MG, ES, interior RJ}
+                   Área 3 {área metropolitana RJ}
+                   Área 4 {área metropolitana SP}
+                   Área 5 {interior SP}
+                   Área 6 {PR, SC, RS}
+                   Área 7 {MS, GO, Brasília} */
   const std::vector<std::vector<unsigned>> areas = { {10, 11, 12, 13, 14,\
 							    15, 16}, {17, 18,\
 								      19}, {19},\
@@ -56,7 +56,9 @@ int main(int argc, char* argv[])
   const unsigned max_iter = {1000000};
   */  
   //// Estimation params
-  unsigned ns = 100; // num of draws
+  // num of draws
+  unsigned ns = 100;
+  // initial params, sigma and pi; 1 (N dist) + 3 (log renda, log renda^2, age)
   std::vector<double> theta2 = {.01, .01, .01, .01};
   double contract_tol = {1e-2};
   /*
