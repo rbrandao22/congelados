@@ -10,8 +10,6 @@
 #include <thread>
 #include <vector>
 
-#include <boost/numeric/ublas/io.hpp>
-#include <boost/numeric/ublas/lu.hpp>
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/vector.hpp>
 #include <Eigen/Dense>
@@ -297,34 +295,48 @@ void BLP::contraction(bool increase_tol)
   }
 }
 
-void BLP::calc_phis()
+void BLP::calc_phi_inv()
 {
-  phi = ublas::prod(ublas::trans(Z), Z);
-  phi_inv = ublas::identity_matrix<double> (phi.size1());
-  ublas::permutation_matrix<size_t> pm(phi.size1());
-  ublas::lu_factorize(phi, pm);
-  ublas::lu_substitute(phi, pm, phi_inv);
-  phi_inv *= -1;
+  phi_inv = ublas::prod(ublas::trans(Z), Z);
+  Eigen::MatrixXd phi_inv_(phi_inv.size1(), phi_inv.size2());
+  for (unsigned i = 0; i < phi_inv.size1(); ++i) {
+    for (unsigned j = 0; j < phi_inv.size2(); ++j) {
+      phi_inv_(i, j) = phi_inv(i, j);
+    }
+  }
+  phi_inv_ = phi_inv_.inverse();
+  for (unsigned i = 0; i < phi_inv.size1(); ++i) {
+    for (unsigned j = 0; j < phi_inv.size2(); ++j) {
+      phi_inv(i, j) = phi_inv_(i, j);
+    }
+  }
 }
 
 void BLP::calc_theta1()
 {
-  this->calc_phis();
+  this->calc_phi_inv();
   ublas::matrix<double> aux_mat1;
   ublas::matrix<double> aux_mat1_inv;
   ublas::matrix<double> aux_mat2;
-  // aux_mat1 = X1'Z*phi_inv*Z'X1
+  // aux_mat1 = (X1'Z*phi_inv*Z'X1)^(-1)
   aux_mat1 = ublas::prod(ublas::trans(X1), Z);
   aux_mat1 = ublas::prod(aux_mat1, phi_inv);
   aux_mat1 = ublas::prod(aux_mat1, ublas::trans(Z));
   aux_mat1 = ublas::prod(aux_mat1, X1);
-  aux_mat1_inv = ublas::identity_matrix<double> (aux_mat1.size1());
-  ublas::permutation_matrix<size_t> pm(aux_mat1.size1());
-  ublas::lu_factorize(aux_mat1, pm);
-  ublas::lu_substitute(aux_mat1, pm, aux_mat1_inv);
-  aux_mat1_inv *= -1;
+  Eigen::MatrixXd aux_mat1_(aux_mat1.size1(), aux_mat1.size2());
+  for (unsigned i = 0; i < aux_mat1.size1(); ++i) {
+    for (unsigned j = 0; j < aux_mat1.size2(); ++j) {
+      aux_mat1_(i, j) = aux_mat1(i, j);
+    }
+  }
+  aux_mat1_ = aux_mat1_.inverse();
+  for (unsigned i = 0; i < aux_mat1.size1(); ++i) {
+    for (unsigned j = 0; j < aux_mat1.size2(); ++j) {
+      aux_mat1(i, j) = aux_mat1_(i, j);
+    }
+  }
   // aux_mat2 = aux_mat1_inv*X1'Z*phi_inv*Z'
-  aux_mat2 = ublas::prod(aux_mat1_inv, ublas::trans(X1));
+  aux_mat2 = ublas::prod(aux_mat1, ublas::trans(X1));
   aux_mat2 = ublas::prod(aux_mat2, Z);
   aux_mat2 = ublas::prod(aux_mat2, phi_inv);
   aux_mat2 = ublas::prod(aux_mat2, ublas::trans(Z));
@@ -432,19 +444,21 @@ void BLP::calc_Ddelta()
   }
   Ddelta1[0] /= ns;
   Ddelta2[0] /= ns;
-  // invert first matrix and multiply
-  /*Ddelta = ublas::identity_matrix<double> (Ddelta1[0].size1());
-  ublas::permutation_matrix<size_t> pm(Ddelta1[0].size1());
-  ublas::lu_factorize(Ddelta1[0], pm);
-  ublas::lu_substitute(Ddelta1[0], pm, Ddelta);
-  Ddelta = ublas::prod(Ddelta, Ddelta2[0]); */
-  Eigen::MatrixXd Ddelta1_eigen(S.size(), S.size());
-  for (unsigned jt = 0; jt < S.size(); ++jt) {
-    for (unsigned jt2 = 0; jt2 < S.size(); ++jt2) {
-      Ddelta1_eigen(jt, jt2) = Ddelta1[0](jt, jt2);
+  // invert first matrix using Eigen and multiply
+  Ddelta = Ddelta1[0];
+  Eigen::MatrixXd Ddelta_(Ddelta.size1(), Ddelta.size2());
+  for (unsigned i = 0; i < Ddelta.size1(); ++i) {
+    for (unsigned j = 0; j < Ddelta.size2(); ++j) {
+      Ddelta_(i, j) = Ddelta(i, j);
     }
   }
-  Ddelta1_eigen.inverse();
+  Ddelta_ = Ddelta_.inverse();
+  for (unsigned i = 0; i < Ddelta.size1(); ++i) {
+    for (unsigned j = 0; j < Ddelta.size2(); ++j) {
+      Ddelta(i, j) = Ddelta_(i, j);
+    }
+  }
+  Ddelta = ublas::prod(Ddelta, Ddelta2[0]);
   unsigned x = 0; //DEBUG
 }
 

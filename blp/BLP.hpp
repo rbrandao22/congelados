@@ -33,7 +33,6 @@ public:
     theta2.clear();
     exp_delta1.clear();
     exp_delta2.clear();
-    phi.clear();
     phi_inv.clear();
     omega.clear();
   }
@@ -54,7 +53,7 @@ public:
   void allocate();
   void calc_shares();
   void contraction(bool increase_tol=true);
-  void calc_phis();
+  void calc_phi_inv();
   void calc_theta1();
   void calc_Ddelta();
   void gmm();
@@ -78,7 +77,6 @@ private:
   std::vector<ublas::vector<double>> s_calc;
   ublas::vector<double> exp_delta1;
   ublas::vector<double> exp_delta2;
-  ublas::matrix<double> phi;
   ublas::matrix<double> phi_inv;
   ublas::vector<double> omega;
   // grad specific

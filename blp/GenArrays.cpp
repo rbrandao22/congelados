@@ -88,8 +88,8 @@ GenArrays::GenArrays(const unsigned num_periods, const\
   unsigned area;
   for (unsigned t = 0; t != num_mkts; ++t) {
     area = t / num_periods;
-    area_id[i] = area;
     for (unsigned j = 0; j != num_prods; ++j) {
+      area_id[i] = area;
       // precos
       X1(i, 0) = X2(i, 0);
       // area dummies

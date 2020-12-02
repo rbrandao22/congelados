@@ -8,6 +8,7 @@
 #include "boost/multi_array.hpp"
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/vector.hpp>
+#include <Eigen/Dense>
 
 namespace ublas = boost::numeric::ublas;
 
@@ -22,35 +23,25 @@ public:
       max_threads=64);
   ~BLP()
   {
-    S.clear();
-    delta.clear();
-    X1.clear();
-    X2.clear();
-    Z.clear();
     mkt_id.clear();
     area_id.clear();
-    theta1.clear();
-    theta2.clear();
-    exp_delta1.clear();
-    exp_delta2.clear();
-    phi.clear();
-    phi_inv.clear();
-    omega.clear();
   }
   template<class Archive>
   void serialize(Archive & ar, const unsigned int version)
   {
-    ar & S;
-    ar & delta;
-    ar & X1;
-    ar & X2;
-    ar & Z;
+    ar & S_;
+    ar & delta_;
+    ar & X1_;
+    ar & X2_;
+    ar & Z_;
     ar & mkt_id;
     ar & area_id;
   }
   unsigned ns;
+  unsigned jt_size;
   unsigned num_threads;
   double contract_tol;
+  void transf_eigen();
   void allocate();
   void calc_shares();
   void contraction(bool increase_tol=true);
@@ -60,35 +51,41 @@ public:
   void gmm();
   
 private:
-  ublas::vector<double> S;
-  ublas::vector<double> delta;
-  ublas::matrix<double> X1;
-  ublas::matrix<double> X2;
-  ublas::matrix<double> Z;
+  ublas::vector<double> S_;
+  ublas::vector<double> delta_;
+  ublas::matrix<double> X1_;
+  ublas::matrix<double> X2_;
+  ublas::matrix<double> Z_;
   ublas::vector<unsigned> mkt_id;
   ublas::vector<unsigned> area_id;
   // random coeff draws
   boost::multi_array<double, 3> v;
   boost::multi_array<double, 3> D;
+  // Eigen transfs
+  Eigen::VectorXd S;
+  Eigen::VectorXd delta;
+  Eigen::MatrixXd X1;
+  Eigen::MatrixXd X2;
+  Eigen::MatrixXd Z;
   // params
-  ublas::vector<double> theta1;
-  ublas::vector<double> theta2;
+  Eigen::VectorXd theta1;
+  Eigen::VectorXd theta2;
   /// calc objs
-  std::vector<ublas::vector<double>> s_aux;
-  std::vector<ublas::vector<double>> s_calc;
-  ublas::vector<double> exp_delta1;
-  ublas::vector<double> exp_delta2;
-  ublas::matrix<double> phi;
-  ublas::matrix<double> phi_inv;
-  ublas::vector<double> omega;
+  std::vector<Eigen::VectorXd> s_aux;
+  std::vector<Eigen::VectorXd> s_calc;
+  Eigen::VectorXd exp_delta1;
+  Eigen::VectorXd exp_delta2;
+  Eigen::MatrixXd phi;
+  Eigen::MatrixXd phi_inv;
+  Eigen::VectorXd omega;
   // grad specific
-  ublas::matrix<double> s_ijt;
-  ublas::matrix<double> Ddelta;
-  std::vector<ublas::matrix<double>> Ddelta1;
-  std::vector<ublas::matrix<double>> Ddelta2;
-  std::vector<ublas::matrix<double>> Ddelta1_aux;
-  std::vector<ublas::matrix<double>> Ddelta2a_aux;
-  std::vector<ublas::matrix<double>> Ddelta2b_aux;
+  Eigen::MatrixXd s_ijt;
+  Eigen::MatrixXd Ddelta;
+  std::vector<Eigen::MatrixXd> Ddelta1;
+  std::vector<Eigen::MatrixXd> Ddelta2;
+  std::vector<Eigen::MatrixXd> Ddelta1_aux;
+  std::vector<Eigen::MatrixXd> Ddelta2a_aux;
+  std::vector<Eigen::MatrixXd> Ddelta2b_aux;
 };
 
 #endif

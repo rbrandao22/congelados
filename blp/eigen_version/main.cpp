@@ -113,6 +113,7 @@ int main(int argc, char* argv[])
         ia >> inst_BLP;
 	ifs.close();
     }
+    inst_BLP.transf_eigen();
     inst_BLP.allocate();
     inst_BLP.gmm();
     /*

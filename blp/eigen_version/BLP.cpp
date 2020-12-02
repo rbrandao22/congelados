@@ -142,27 +142,55 @@ BLP::BLP(const unsigned num_periods, const unsigned num_bins_renda, const\
 			 max_threads);
 }
 
+void BLP::transf_eigen()
+{
+  jt_size = S_.size();
+  S.resize(jt_size);
+  delta.resize(jt_size);
+  X1.resize(jt_size, X1_.size2());
+  X2.resize(jt_size, X2_.size2());
+  Z.resize(jt_size, Z_.size2());
+  for (unsigned jt = 0; jt < jt_size; ++jt) {
+    S(jt) = S_(jt);
+    delta(jt) = delta_(jt);
+    for (unsigned i = 0; i < X1_.size2(); ++i) {
+      X1(jt, i) = X1_(jt, i);
+    }
+    for (unsigned i = 0; i < X2_.size2(); ++i) {
+      X2(jt, i) = X2_(jt, i);
+    }
+    for (unsigned i = 0; i < Z_.size2(); ++i) {
+      Z(jt, i) = Z(jt, i);
+    }
+  }
+  S_.clear();
+  delta_.clear();
+  X1_.clear();
+  X2_.clear();
+  Z_.clear();
+}
+
 void BLP::allocate()
 {
-  ublas::vector<double> auxV;
-  auxV.resize(S.size());
+  Eigen::VectorXd auxV;
+  auxV.resize(jt_size);
   for (unsigned i = 0; i != num_threads; ++i) {
     s_aux.push_back(auxV);
     s_calc.push_back(auxV);
   }
-  exp_delta1.resize(S.size());
-  exp_delta2.resize(S.size());
-  s_ijt.resize(ns, S.size());
-  ublas::matrix<double> auxM1;
-  auxM1.resize(S.size(), S.size());
+  exp_delta1.resize(jt_size);
+  exp_delta2.resize(jt_size);
+  s_ijt.resize(ns, jt_size);
+  Eigen::MatrixXd auxM1;
+  auxM1.resize(jt_size, jt_size);
   for (unsigned i = 0; i != num_threads; ++i) {
     Ddelta1.push_back(auxM1);
     Ddelta1_aux.push_back(auxM1);
   }
-  ublas::matrix<double> auxM2;
-  auxM2.resize(S.size(), theta2.size());
-  ublas::matrix<double> auxM3;
-  auxM3.resize(S.size(), 1);
+  Eigen::MatrixXd auxM2;
+  auxM2.resize(jt_size, theta2.size());
+  Eigen::MatrixXd auxM3;
+  auxM3.resize(jt_size, 1);
   for (unsigned i = 0; i != num_threads; ++i) {
     Ddelta2.push_back(auxM2);
     Ddelta2a_aux.push_back(auxM2);
@@ -177,7 +205,7 @@ void BLP::calc_shares()
   block_size = ns / num_threads;
   auto s_calc_L = [&] (unsigned th, unsigned begin, unsigned end) {
 		     for (unsigned i =  begin; i < end; ++i) {
-		       for (unsigned jt = 0; jt < S.size(); ++jt) {
+		       for (unsigned jt = 0; jt < jt_size; ++jt) {
 			 s_aux[th][jt] = std::exp(delta(jt) + X2(jt) *\
 						   (theta2[0] *\
 						    v[i][0][area_id[jt]] +\
@@ -191,7 +219,7 @@ void BLP::calc_shares()
 		       double mkt_sum = 0.;
 		       unsigned aux_mkt_id = 0;
 		       unsigned aux_init_jt = 0;
-		       for (unsigned jt = 0; jt < S.size(); ++jt) {
+		       for (unsigned jt = 0; jt < jt_size; ++jt) {
 		         if (aux_mkt_id == mkt_id[jt]) {
 			   mkt_sum += s_aux[th][jt];
 		         } else {
@@ -202,13 +230,13 @@ void BLP::calc_shares()
 		       	   aux_init_jt = jt;
 		       	   aux_mkt_id = mkt_id[jt];
 		         }
-		         if (jt == S.size() - 1) {
+		         if (jt == jt_size - 1) {
 			   for (unsigned jt2 = aux_init_jt; jt2 <= jt; ++jt2) {
 			     s_aux[th][jt2] /= mkt_sum;
 			   }
 		         }
 		       }
-		       for (unsigned jt = 0; jt < S.size(); ++jt) {
+		       for (unsigned jt = 0; jt < jt_size; ++jt) {
 			 if (i == begin) {
 			   s_calc[th][jt] = s_aux[th][jt];
 			 } else {
@@ -244,7 +272,7 @@ void BLP::contraction(bool increase_tol)
   // init threads
   std::vector<std::thread> threads;
   unsigned j, k, block_size;
-  block_size = S.size() / num_threads;
+  block_size = jt_size / num_threads;
   // contraction lambda function
   auto contract_L = [&] (unsigned begin, unsigned end) {
 		      for (unsigned i = begin; i < end; ++i) {
@@ -272,7 +300,7 @@ void BLP::contraction(bool increase_tol)
       threads.push_back(std::thread(contract_L, j , k));
       j = k;
     }
-    threads.push_back(std::thread(contract_L, j, S.size()));
+    threads.push_back(std::thread(contract_L, j, jt_size));
     for (auto& thread : threads) {
       thread.join();
     }
@@ -299,37 +327,16 @@ void BLP::contraction(bool increase_tol)
 
 void BLP::calc_phis()
 {
-  phi = ublas::prod(ublas::trans(Z), Z);
-  phi_inv = ublas::identity_matrix<double> (phi.size1());
-  ublas::permutation_matrix<size_t> pm(phi.size1());
-  ublas::lu_factorize(phi, pm);
-  ublas::lu_substitute(phi, pm, phi_inv);
-  phi_inv *= -1;
+  phi = Z.transpose() * Z;
+  phi_inv = phi.inverse();
 }
 
 void BLP::calc_theta1()
 {
   this->calc_phis();
-  ublas::matrix<double> aux_mat1;
-  ublas::matrix<double> aux_mat1_inv;
-  ublas::matrix<double> aux_mat2;
-  // aux_mat1 = X1'Z*phi_inv*Z'X1
-  aux_mat1 = ublas::prod(ublas::trans(X1), Z);
-  aux_mat1 = ublas::prod(aux_mat1, phi_inv);
-  aux_mat1 = ublas::prod(aux_mat1, ublas::trans(Z));
-  aux_mat1 = ublas::prod(aux_mat1, X1);
-  aux_mat1_inv = ublas::identity_matrix<double> (aux_mat1.size1());
-  ublas::permutation_matrix<size_t> pm(aux_mat1.size1());
-  ublas::lu_factorize(aux_mat1, pm);
-  ublas::lu_substitute(aux_mat1, pm, aux_mat1_inv);
-  aux_mat1_inv *= -1;
-  // aux_mat2 = aux_mat1_inv*X1'Z*phi_inv*Z'
-  aux_mat2 = ublas::prod(aux_mat1_inv, ublas::trans(X1));
-  aux_mat2 = ublas::prod(aux_mat2, Z);
-  aux_mat2 = ublas::prod(aux_mat2, phi_inv);
-  aux_mat2 = ublas::prod(aux_mat2, ublas::trans(Z));
-  // theta1 = aux_mat2*delta
-  theta1 = ublas::prod(aux_mat2, delta);
+  // theta1 = (X1'Z*phi_inv*Z'X1)^(-1)*X1'Z*phi_inv*Z'delta
+  theta1 = (X1.transpose() * Z * phi_inv * Z.transpose() * X1).inverse() *\
+    X1.transpose() * Z * phi_inv * Z.transpose() * delta;
 }
 
 void BLP::calc_Ddelta()
@@ -342,8 +349,8 @@ void BLP::calc_Ddelta()
 		      /* fill Ddelta1 (share derivatives w/ respect to delta) &
 		         compute Ddelta2 (share derivatives w/ respect to\
                          theta2) summation terms */
-		      for (unsigned jt = 0; jt < S.size(); ++jt) {
-			for (unsigned jt2 = 0; jt2 < S.size(); ++jt2) {
+		      for (unsigned jt = 0; jt < jt_size; ++jt) {
+			for (unsigned jt2 = 0; jt2 < jt_size; ++jt2) {
 			  if (jt == jt2) {
 			    Ddelta1_aux[th](jt, jt2) = s_ijt(i, jt) * (1 -\
 			      s_ijt(i, jt));
@@ -369,14 +376,14 @@ void BLP::calc_Ddelta()
 		      unsigned aux_init_jt = 0;
 		      unsigned aux_end_jt;
 		      bool mkt_end = false;
-		      for (unsigned jt = 0; jt < S.size(); ++jt) {
+		      for (unsigned jt = 0; jt < jt_size; ++jt) {
 			if (mkt_id[jt] != aux_mkt_id || jt == 0) {
 			  aux_mkt_id = mkt_id[jt];
 			  aux_init_jt = jt;
 			  mkt_end = false;
 			  while (!mkt_end) {
 			    ++jt;
-			    if (mkt_id[jt] != aux_mkt_id || jt == S.size() - 1) {
+			    if (mkt_id[jt] != aux_mkt_id || jt == jt_size - 1) {
 			      aux_end_jt = jt;
 			      mkt_end = true;
 			    }
@@ -396,16 +403,16 @@ void BLP::calc_Ddelta()
 			  }
 			}
 		      }
-		      for (unsigned jt = 0; jt < S.size(); ++jt) {
+		      for (unsigned jt = 0; jt < jt_size; ++jt) {
 			if (i == begin) {
-			  for (unsigned jt2 = 0; jt2 < S.size(); ++jt2) {
+			  for (unsigned jt2 = 0; jt2 < jt_size; ++jt2) {
 			    Ddelta1[th](jt, jt2) = Ddelta1_aux[th](jt, jt2);
 			  }
 			  for (unsigned jt2 = 0; jt2 < theta2.size(); ++jt2) {
 			    Ddelta2[th](jt, jt2) = Ddelta2a_aux[th](jt, jt2);
 			  }
 			} else {
-			  for (unsigned jt2 = 0; jt2 < S.size(); ++jt2) {
+			  for (unsigned jt2 = 0; jt2 < jt_size; ++jt2) {
 			    Ddelta1[th](jt, jt2) += Ddelta1_aux[th](jt, jt2);
 			  }
 			  for (unsigned jt2 = 0; jt2 < theta2.size(); ++jt2) {
@@ -433,19 +440,7 @@ void BLP::calc_Ddelta()
   Ddelta1[0] /= ns;
   Ddelta2[0] /= ns;
   // invert first matrix and multiply
-  /*Ddelta = ublas::identity_matrix<double> (Ddelta1[0].size1());
-  ublas::permutation_matrix<size_t> pm(Ddelta1[0].size1());
-  ublas::lu_factorize(Ddelta1[0], pm);
-  ublas::lu_substitute(Ddelta1[0], pm, Ddelta);
-  Ddelta = ublas::prod(Ddelta, Ddelta2[0]); */
-  Eigen::MatrixXd Ddelta1_eigen(S.size(), S.size());
-  for (unsigned jt = 0; jt < S.size(); ++jt) {
-    for (unsigned jt2 = 0; jt2 < S.size(); ++jt2) {
-      Ddelta1_eigen(jt, jt2) = Ddelta1[0](jt, jt2);
-    }
-  }
-  Ddelta1_eigen.inverse();
-  unsigned x = 0; //DEBUG
+  Ddelta = Ddelta1[0].inverse() * Ddelta2[0];
 }
 
 void BLP::gmm()
@@ -453,6 +448,6 @@ void BLP::gmm()
   this->contraction();
   this->calc_theta1();
   // auto error_calc
-  omega = delta - ublas::prod(X1, theta1);
+  omega = delta - X1 * theta1;
   this->calc_Ddelta();
 }
