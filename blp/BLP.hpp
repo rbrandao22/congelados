@@ -47,18 +47,23 @@ public:
     ar & mkt_id;
     ar & area_id;
   }
-  unsigned ns;
-  unsigned num_threads;
-  double contract_tol;
   void allocate();
   void calc_shares();
-  void contraction(bool increase_tol=true);
+  void contraction();
   void calc_phi_inv();
   void calc_theta1();
   void calc_Ddelta();
-  void gmm();
+  void grad_calc();
+  void objective_calc();
+  void gmm(double nr_tol, double step_size, const unsigned max_iter);
+  void persist(const std::string persist_file2);
   
 private:
+  unsigned ns;
+  unsigned num_threads;
+  double contract_tol;
+  bool ctol_inc;  // following Nevo, contraction tol may initially increase
+  double obj_value;
   ublas::vector<double> S;
   ublas::vector<double> delta;
   ublas::matrix<double> X1;
@@ -87,6 +92,10 @@ private:
   std::vector<ublas::matrix<double>> Ddelta1_aux;
   std::vector<ublas::matrix<double>> Ddelta2a_aux;
   std::vector<ublas::matrix<double>> Ddelta2b_aux;
+  ublas::matrix<double> grad_aux;
+  ublas::vector<double> grad;
+  ublas::vector<double> obj_aux;
+  ublas::matrix<double> obj_aux2;
 };
 
 #endif

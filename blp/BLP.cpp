@@ -1,9 +1,6 @@
-#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <iostream>
-#include <limits>
-#include <numeric>
 #include <pqxx/pqxx>
 #include <random>
 #include <stdexcept>
@@ -233,11 +230,11 @@ void BLP::calc_shares()
   s_calc[0] /= ns;
 }
 
-void BLP::contraction(bool increase_tol)
+void BLP::contraction()
 {
   // increase tol params
-  unsigned iters_nbr1 = 50;  // iterations before first increase
-  unsigned iters_nbr2 = 20;  // number of iters for further increases
+  unsigned iters_nbr1 = 100;  // iterations before first increase
+  unsigned iters_nbr2 = 50;  // number of iters for further increases
   unsigned tol_factor = 1e1;  // increase factor
   // init threads
   std::vector<std::thread> threads;
@@ -287,10 +284,12 @@ void BLP::contraction(bool increase_tol)
       }
     }
     ++iter_count;
-    if (iter_count == iters_nbr1 || (iter_count > iters_nbr1 && (iter_count -\
-								 iters_nbr1) %\
-				     iters_nbr2 == 0)) {
-      contract_tol *= tol_factor;
+    if (ctol_inc) {
+      if (iter_count == iters_nbr1 || (iter_count > iters_nbr1 &&\
+				       (iter_count - iters_nbr1) %\
+				       iters_nbr2 == 0)) {
+	contract_tol *= tol_factor;
+      }
     }
   }
 }
@@ -459,14 +458,81 @@ void BLP::calc_Ddelta()
     }
   }
   Ddelta = ublas::prod(Ddelta, Ddelta2[0]);
-  unsigned x = 0; //DEBUG
 }
 
-void BLP::gmm()
+void BLP::grad_calc()
 {
   this->contraction();
   this->calc_theta1();
-  // auto error_calc
+  // calc error term
   omega = delta - ublas::prod(X1, theta1);
   this->calc_Ddelta();
+  grad_aux = 2 * ublas::prod(ublas::trans(Ddelta), Z);
+  grad_aux = ublas::prod(grad_aux, phi_inv);
+  grad_aux = ublas::prod(grad_aux, ublas::trans(Z));
+  grad = ublas::prod(grad_aux, omega);
+}
+
+void BLP::objective_calc()
+{
+  obj_aux = ublas::prod(ublas::trans(omega), Z);
+  obj_aux = ublas::prod(obj_aux, phi_inv);
+  obj_aux = ublas::prod(obj_aux, ublas::trans(Z));
+  obj_value = ublas::inner_prod(obj_aux, omega);
+}
+
+void BLP::gmm(double nr_tol, double step_size, const unsigned max_iter)
+{
+  // contraction tol increase params
+  ctol_inc = true;
+  double ctol_inc_size = .01;
+  
+  double grad_size;
+  unsigned iter_nbr = 0;
+  while (true) {
+    this->grad_calc();
+    bool halt_check = true;
+    for (unsigned i = 0; i < grad.size(); ++i) {
+      if (halt_check == true && std::abs(grad(i)) > nr_tol){
+	halt_check = false;
+      }
+    }
+    if (halt_check || ctol_inc == false) {
+      break;
+    }
+    ctol_inc = false;
+    for (unsigned i = 0; i < theta2.size(); ++i) {
+      theta2(i) -= grad(i) * step_size;
+      if (std::abs(grad(i)) > ctol_inc_size) {
+	ctol_inc = true;
+      }
+    }
+    grad_size = 0;
+    for (unsigned i = 0; i < grad.size(); ++i) {
+      grad_size += std::abs(grad(i));
+    }
+    grad_size /= grad.size();
+    this->objective_calc();
+    std::cout << "NR #iter: " << iter_nbr << "  Gradient size: " << grad_size\
+	      << "  Objective value: " << obj_value << std::endl;
+    if (iter_nbr == max_iter) {
+      break;
+    }
+    ++iter_nbr;
+  }
+}
+
+void BLP::persist(const std::string persist_file2)
+{
+  std::ofstream fdesc;
+  fdesc.open(persist_file2);
+  assert(fdesc.is_open());
+  for (unsigned i = 0; i < theta1.size(); ++i) {
+    fdesc << "theta1_" << i << ": " << theta1(i) << '\n';
+  }
+  for (unsigned i = 0; i < theta2.size(); ++i) {
+    fdesc << "theta2_" << i << ": " << theta2(i) << '\n';
+  }
+  std::cout << "Finished params persistance in file " << persist_file2 <<\
+    std::endl;
 }

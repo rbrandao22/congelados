@@ -36,56 +36,28 @@ int main(int argc, char* argv[])
                    Área 5 {interior SP}
                    Área 6 {PR, SC, RS}
                    Área 7 {MS, GO, Brasília} */
-  const std::vector<std::vector<unsigned>> areas = { {10, 11, 12, 13, 14,\
-							    15, 16}, {17, 18,\
-								      19}, {19},\
-							   {20}, {20}, {21, 22,\
-									23},\
-							   {24, 26, 27} };
+  const std::vector<std::vector<unsigned>> areas = { {10, 11, 12, 13, 14, 15,\
+						      16}, {17, 18, 19}, {19},\
+						     {20}, {20}, {21, 22, 23},\
+						     {24, 26, 27} };
   // run identifier
   const std::string run_id = "01";
   // results directory
   const std::string results_dir = "results/";
   const std::string persist_file = results_dir + "arrays/" + run_id;
-  /*
   const std::string persist_file2 = results_dir + "est_params/" + run_id;
-  // initial guess file ((alpha, beta)_r, gamma, lambda, mu)
-  const std::string initguess_f = results_dir + "init_guess";
-  
-  // maximum number of iterations
-  const unsigned max_iter = {1000000};
-  */  
   //// Estimation params
   // num of draws
   unsigned ns = 100;
   // initial params, sigma and pi; 1 (N dist) + 3 (log renda, log renda^2, age)
-  std::vector<double> theta2 = {.01, .01, .01, .01};
-  double contract_tol = {1e-2};
-  /*
-  // minimum 'observed shares' for numerical feasibility
-  const double min_share = {1e-20};
-  /// BLP contraction
+  std::vector<double> theta2 = {-.0160785, .0118393, -.141934, .0655968};
+  // Berry's contraction params
+  double contract_tol = {1e-8};
+  // Newton Raphson params
+  const double step_size = {1e-8};
+  const double nr_tol = {1e-8};
+  const unsigned max_iter = 3;
 
-  // maximum number of iterations
-  const unsigned max_iter_contract = {1000};
-  /// Newton Raphson params
-  const double inc = {1e-4}; // dx for numerical gradient
-  const double step_size = {1e-7};
-  const double max_step = {1e-1};
-  const double step_factor = {10};
-  const double tol = {1e-8};
-  /// Nelder Mead params
-  // constrained optimization penalty
-  const double penalty_param1 = {1e6};
-  const unsigned penalty_param2 = {4}; // (must be even)
-  // initial tetrahedron "size" for Nelder Mead procedure
-  const double init_tetra_size1 = {.1};
-  const double init_tetra_size2 = {.05}; // for constrained params (last 3)
-  // NM coefficients
-  const double alpha = {5}; // reflection, alpha > 0
-  const double beta = {.5}; // contraction, beta in [0,1]
-  const double gamma = {15}; // expansion, gamma > 1
-  */
   /* END OF PARAMETERS */
 
   if (argc > 1 && std::strcmp(argv[1], "genarrays") == 0) {
@@ -114,39 +86,9 @@ int main(int argc, char* argv[])
 	ifs.close();
     }
     inst_BLP.allocate();
-    inst_BLP.gmm();
-    /*
-    inst_BLP.allocate();
-    // GMM
-    unsigned iter_nbr = 0;
-    std::vector<std::thread> threads = {};
-    while (true) {
-      inst_BLP.updatePs(inc);
-      threads.clear();
-      for (unsigned pt = 1; pt <= inst_BLP.params_nbr; ++pt) {
-        threads.push_back(std::thread(&BLP::calc_objective, std::ref(inst_BLP),\
-				      pt, false));
-      }
-      for (auto& thread : threads) {
-        thread.join();
-      }
-      inst_BLP.grad_calc(inc, tol);
-      if (inst_BLP.halt_check) 
-        break;
-      inst_BLP.step(step_size, max_step, step_factor, iter_nbr);
-      if (iter_nbr == max_iter)
-	break;
-      ++iter_nbr;
-      std::remove(initguess_f.c_str());
-      inst_BLP.persist_ig(initguess_f);
-    }
-    // compute variance
-    inst_BLP.variance();
-    // persist results
+    inst_BLP.gmm(nr_tol, step_size, max_iter);
     inst_BLP.persist(persist_file2);
-    std::cout << "# of iterations: " << iter_nbr << std::endl;
-    */
-  } else {
+ } else {
     std::cout << "Invalid args!" << std::endl;
     throw std::runtime_error("aborting");
   }
