@@ -16,10 +16,11 @@
 namespace ublas = boost::numeric::ublas;
 
 
-BLP::BLP(const unsigned num_periods, const unsigned num_bins_renda, const\
-	 unsigned num_bins_idade, const std::vector<std::vector<unsigned>> areas,\
-	 unsigned ns_, std::vector<double> theta2_, double contract_tol_,\
-	 const unsigned max_threads)
+BLP::BLP(const std::string persist_file2_, const unsigned num_periods, const\
+	 unsigned num_bins_renda, const unsigned num_bins_idade, const\
+	 std::vector<std::vector<unsigned>> areas, unsigned ns_,\
+	 std::vector<double> theta2_, double contract_tol_, const unsigned\
+	 max_threads)
 {
   pqxx::connection C("dbname = congelados user = postgres password = passwd"\
           " hostaddr = 127.0.0.1 port = 5432");
@@ -33,6 +34,7 @@ BLP::BLP(const unsigned num_periods, const unsigned num_bins_renda, const\
   pqxx::nontransaction N(C);
 
   // initialization of vars
+  persist_file2 = persist_file2_;
   ns = ns_;  // num of draws
   theta2.resize(theta2_.size());  // initial guess for theta2
   for (unsigned i = 0; i != theta2.size(); ++i) {
@@ -245,6 +247,7 @@ void BLP::contraction()
 		      for (unsigned i = begin; i < end; ++i) {
 			exp_delta2[i] = exp_delta1[i] * S[i] / s_calc[0][i];
 			if (std::isnan(exp_delta2[i])) {
+			  this->persist();
 			  throw std::runtime_error("NAN in contract_L, check");
 			}
 			delta[i] = std::log(exp_delta2[i]);
@@ -483,12 +486,23 @@ void BLP::objective_calc()
 
 void BLP::gmm(double nr_tol, double step_size, const unsigned max_iter)
 {
+  unsigned iter_nbr = 0;
+  auto show_results = [&] (unsigned iter_nbr) {
+			double grad_size = 0;
+			for (unsigned i = 0; i < grad.size(); ++i) {
+			  grad_size += std::abs(grad(i));
+			}
+			grad_size /= grad.size();
+			this->objective_calc();
+			std::cout << "NR #iter: " << iter_nbr <<\
+			  "  Gradient size: " << grad_size <<\
+			  "  Objective value: " << obj_value << std::endl;
+		      };
+    
   // contraction tol increase params
   ctol_inc = true;
   double ctol_inc_size = .01;
-  
-  double grad_size;
-  unsigned iter_nbr = 0;
+  // GMM  
   while (true) {
     this->grad_calc();
     bool halt_check = true;
@@ -507,14 +521,7 @@ void BLP::gmm(double nr_tol, double step_size, const unsigned max_iter)
 	ctol_inc = true;
       }
     }
-    grad_size = 0;
-    for (unsigned i = 0; i < grad.size(); ++i) {
-      grad_size += std::abs(grad(i));
-    }
-    grad_size /= grad.size();
-    this->objective_calc();
-    std::cout << "NR #iter: " << iter_nbr << "  Gradient size: " << grad_size\
-	      << "  Objective value: " << obj_value << std::endl;
+    std::thread(show_results, iter_nbr);
     if (iter_nbr == max_iter) {
       break;
     }
@@ -522,7 +529,7 @@ void BLP::gmm(double nr_tol, double step_size, const unsigned max_iter)
   }
 }
 
-void BLP::persist(const std::string persist_file2)
+void BLP::persist()
 {
   std::ofstream fdesc;
   fdesc.open(persist_file2);

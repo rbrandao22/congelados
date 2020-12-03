@@ -56,7 +56,7 @@ int main(int argc, char* argv[])
   // Newton Raphson params
   const double step_size = {1e-8};
   const double nr_tol = {1e-8};
-  const unsigned max_iter = 3;
+  const unsigned max_iter = 100;
 
   /* END OF PARAMETERS */
 
@@ -75,8 +75,8 @@ int main(int argc, char* argv[])
 	     (argc > 2 && std::strcmp(argv[1], "genarrays") == 0 &&\
 	      std::strcmp(argv[2], "estimation") == 0)) {
     // instantiate
-    BLP inst_BLP(num_periods, num_bins_renda, num_bins_idade, areas, ns, theta2,\
-		 contract_tol);
+    BLP inst_BLP(persist_file2, num_periods, num_bins_renda, num_bins_idade,\
+		 areas, ns, theta2, contract_tol);
     // deserialize
     {
         std::ifstream ifs(persist_file);
@@ -87,7 +87,7 @@ int main(int argc, char* argv[])
     }
     inst_BLP.allocate();
     inst_BLP.gmm(nr_tol, step_size, max_iter);
-    inst_BLP.persist(persist_file2);
+    inst_BLP.persist();
  } else {
     std::cout << "Invalid args!" << std::endl;
     throw std::runtime_error("aborting");

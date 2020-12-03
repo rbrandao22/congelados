@@ -16,9 +16,10 @@ class BLP
 {
 
 public:
-  BLP(const unsigned num_periods, const unsigned num_bins_renda, const unsigned\
-      num_bins_idade, const std::vector<std::vector<unsigned>> areas, unsigned\
-      ns_, std::vector<double> theta2_, double contract_tol_, const unsigned\
+  BLP(const std::string persist_file2_, const unsigned num_periods, const\
+      unsigned num_bins_renda, const unsigned num_bins_idade, const\
+      std::vector<std::vector<unsigned>> areas, unsigned ns_,\
+      std::vector<double> theta2_, double contract_tol_, const unsigned\
       max_threads=64);
   ~BLP()
   {
@@ -56,9 +57,10 @@ public:
   void grad_calc();
   void objective_calc();
   void gmm(double nr_tol, double step_size, const unsigned max_iter);
-  void persist(const std::string persist_file2);
+  void persist();
   
 private:
+  std::string persist_file2;
   unsigned ns;
   unsigned num_threads;
   double contract_tol;
