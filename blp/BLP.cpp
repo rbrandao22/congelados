@@ -504,26 +504,29 @@ void BLP::grad_calc()
   grad_aux = ublas::prod(grad_aux, ublas::trans(Z));
   grad = ublas::prod(grad_aux, omega);
   // check for nan and limit infs
+  grad_adj.resize(grad.size());
   for (unsigned i = 0; i < grad.size(); ++i) {
     assert(!std::isnan(grad(i)));
     if (std::isinf(grad(i))) {
       if (grad(i) < 0) {
-	grad(i) = -num_lim;
+	grad_adj(i) = -num_lim;
       } else {
-	grad(i) = num_lim;
+	grad_adj(i) = num_lim;
       }
+    } else {
+      grad_adj(i) = grad(i);
     }
   }
   // limit gradient norm
   auto grad_norm_L = [&] () {
-		       for (unsigned i = 0; i < grad.size(); ++i) {
-			 grad_norm += std::abs(grad(i));
+		       for (unsigned i = 0; i < grad_adj.size(); ++i) {
+			 grad_norm += std::abs(grad_adj(i));
 		       }
-		       grad_norm /= grad.size();
+		       grad_norm /= grad_adj.size();
 		     };
   grad_norm_L();
   while (grad_norm > max_norm) {
-    grad /= 1e1;
+    grad_adj /= 1e1;
     grad_norm_L();
   }
 }
@@ -544,7 +547,7 @@ void BLP::gmm(double nr_tol, double step_size, const unsigned max_iter)
   auto show_results_L = [&] (unsigned iter_nbr) {
 			  this->objective_calc();
 			  std::cout << "NR #iter: " << iter_nbr <<\
-			    "  Gradient norm: " << grad_norm <<\
+			    "  Gradient (adj) norm: " << grad_norm <<\
 			    "  Objective value: " << obj_value << std::endl;
 			  std::cout << "Theta2: " << theta2(0) << '\t' <<\
 			    theta2(1) << '\t' <<  theta2(2) << '\t' << theta2(3)\
@@ -569,7 +572,7 @@ void BLP::gmm(double nr_tol, double step_size, const unsigned max_iter)
     ctol_inc = false;
     for (unsigned i = 0; i < theta2.size(); ++i) {
       if (std::abs(theta2(i)) < max_theta) {
-	theta2(i) -= grad(i) * step_size;
+	theta2(i) -= grad_adj(i) * step_size;
       }
       if (std::abs(grad(i)) > ctol_inc_size) {
 	ctol_inc = true;
@@ -578,6 +581,9 @@ void BLP::gmm(double nr_tol, double step_size, const unsigned max_iter)
     show_results_L(iter_nbr);
     if (iter_nbr == max_iter) {
       break;
+    }
+    if (iter_nbr % 50 == 0) {
+      this->persist();
     }
     ++iter_nbr;
   }

@@ -96,8 +96,9 @@ private:
   std::vector<ublas::matrix<double>> Ddelta1_aux;
   std::vector<ublas::matrix<double>> Ddelta2a_aux;
   std::vector<ublas::matrix<double>> Ddelta2b_aux;
-  ublas::matrix<double> grad_aux;
   ublas::vector<double> grad;
+  ublas::matrix<double> grad_aux;
+  ublas::vector<double> grad_adj;
   ublas::vector<double> obj_aux;
   ublas::matrix<double> obj_aux2;
 };
