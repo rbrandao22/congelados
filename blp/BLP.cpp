@@ -487,6 +487,7 @@ void BLP::calc_Ddelta()
     }
   }
   Ddelta = ublas::prod(Ddelta, Ddelta2[0]);
+  Ddelta *= -1;
 }
 
 void BLP::grad_calc()

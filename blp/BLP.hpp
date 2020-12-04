@@ -36,6 +36,18 @@ public:
     exp_delta2.clear();
     phi_inv.clear();
     omega.clear();
+    s_ijt.clear();
+    Ddelta.clear();
+    Ddelta1.clear();
+    Ddelta2.clear();
+    Ddelta1_aux.clear();
+    Ddelta2a_aux.clear();
+    Ddelta2b_aux.clear();
+    grad.clear();
+    grad_aux.clear();
+    grad_adj.clear();
+    obj_aux.clear();
+    obj_aux2.clear();
   }
   template<class Archive>
   void serialize(Archive & ar, const unsigned int version)
