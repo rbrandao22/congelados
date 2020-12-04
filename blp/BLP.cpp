@@ -547,7 +547,7 @@ void BLP::gmm(double nr_tol, double step_size, const unsigned max_iter)
   auto show_results_L = [&] (unsigned iter_nbr) {
 			  this->objective_calc();
 			  std::cout << "NR #iter: " << iter_nbr <<\
-			    "  Gradient (adj) norm: " << grad_norm <<\
+			    "  Grad (adj) norm: " << grad_norm <<\
 			    "  Objective value: " << obj_value << std::endl;
 			  std::cout << "Theta2: " << theta2(0) << '\t' <<\
 			    theta2(1) << '\t' <<  theta2(2) << '\t' << theta2(3)\
@@ -582,7 +582,7 @@ void BLP::gmm(double nr_tol, double step_size, const unsigned max_iter)
     if (iter_nbr == max_iter) {
       break;
     }
-    if (iter_nbr % 50 == 0) {
+    if (iter_nbr > 0 && iter_nbr % 50 == 0) {
       this->persist();
     }
     ++iter_nbr;
