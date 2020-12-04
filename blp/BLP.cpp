@@ -1,6 +1,8 @@
+#include <cassert>
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <pqxx/pqxx>
 #include <random>
 #include <stdexcept>
@@ -19,8 +21,8 @@ namespace ublas = boost::numeric::ublas;
 BLP::BLP(const std::string persist_file2_, const unsigned num_periods, const\
 	 unsigned num_bins_renda, const unsigned num_bins_idade, const\
 	 std::vector<std::vector<unsigned>> areas, unsigned ns_,\
-	 std::vector<double> theta2_, double contract_tol_, const unsigned\
-	 max_threads)
+	 std::vector<double> theta2_, double contract_tol_, const double\
+	 num_lim_, const unsigned max_threads)
 {
   pqxx::connection C("dbname = congelados user = postgres password = passwd"\
           " hostaddr = 127.0.0.1 port = 5432");
@@ -34,6 +36,7 @@ BLP::BLP(const std::string persist_file2_, const unsigned num_periods, const\
   pqxx::nontransaction N(C);
 
   // initialization of vars
+  num_lim = num_lim_;
   persist_file2 = persist_file2_;
   ns = ns_;  // num of draws
   theta2.resize(theta2_.size());  // initial guess for theta2
@@ -184,6 +187,9 @@ void BLP::calc_shares()
 						    D[i][1][area_id[jt]] +\
 						    theta2[3] *\
 						    D[i][2][area_id[jt]]));
+			 if (std::isinf(s_aux[th][jt])) {
+			   s_aux[th][jt] = num_lim;
+			 }
 		       }
 		       double mkt_sum = 0.;
 		       unsigned aux_mkt_id = 0;
@@ -238,6 +244,8 @@ void BLP::contraction()
   unsigned iters_nbr1 = 100;  // iterations before first increase
   unsigned iters_nbr2 = 50;  // number of iters for further increases
   unsigned tol_factor = 1e1;  // increase factor
+  unsigned max_iter = 1000;  // max number of iterations
+  double nan_penalty = 1e40;
   // init threads
   std::vector<std::thread> threads;
   unsigned j, k, block_size;
@@ -247,10 +255,14 @@ void BLP::contraction()
 		      for (unsigned i = begin; i < end; ++i) {
 			exp_delta2[i] = exp_delta1[i] * S[i] / s_calc[0][i];
 			if (std::isnan(exp_delta2[i])) {
-			  this->persist();
-			  throw std::runtime_error("NAN in contract_L, check");
+			  if (exp_delta1[i] <= 0) {
+			    delta[i] = -nan_penalty;
+			  } else {
+			    delta[i] = nan_penalty;
+			  }
+			} else {
+			  delta[i] = std::log(exp_delta2[i]);
 			}
-			delta[i] = std::log(exp_delta2[i]);
 		      }
 		    };
   // initialization of exp_delta
@@ -287,6 +299,9 @@ void BLP::contraction()
       }
     }
     ++iter_count;
+    if (iter_count == max_iter) {
+      break;
+    }
     if (ctol_inc) {
       if (iter_count == iters_nbr1 || (iter_count > iters_nbr1 &&\
 				       (iter_count - iters_nbr1) %\
@@ -344,6 +359,13 @@ void BLP::calc_theta1()
   aux_mat2 = ublas::prod(aux_mat2, ublas::trans(Z));
   // theta1 = aux_mat2*delta
   theta1 = ublas::prod(aux_mat2, delta);
+  for (unsigned i = 0; i < theta1.size(); ++i) {
+    if (std::isinf(theta1(i)) && theta1(i) < 0) {
+      theta1(i) = -num_lim;
+    } else if (std::isinf(theta1(i)) && theta1(i) > 0) {
+      theta1(i) = num_lim;
+    }
+  }
 }
 
 void BLP::calc_Ddelta()
@@ -458,6 +480,10 @@ void BLP::calc_Ddelta()
   for (unsigned i = 0; i < Ddelta.size1(); ++i) {
     for (unsigned j = 0; j < Ddelta.size2(); ++j) {
       Ddelta(i, j) = Ddelta_(i, j);
+      if (std::isnan(Ddelta(i, j))) {
+	this->persist();
+	throw std::runtime_error("NAN in Eigen inversion");
+      }
     }
   }
   Ddelta = ublas::prod(Ddelta, Ddelta2[0]);
@@ -465,6 +491,9 @@ void BLP::calc_Ddelta()
 
 void BLP::grad_calc()
 {
+  // local params
+  double max_norm = 1e2;
+  
   this->contraction();
   this->calc_theta1();
   // calc error term
@@ -474,6 +503,29 @@ void BLP::grad_calc()
   grad_aux = ublas::prod(grad_aux, phi_inv);
   grad_aux = ublas::prod(grad_aux, ublas::trans(Z));
   grad = ublas::prod(grad_aux, omega);
+  // check for nan and limit infs
+  for (unsigned i = 0; i < grad.size(); ++i) {
+    assert(!std::isnan(grad(i)));
+    if (std::isinf(grad(i))) {
+      if (grad(i) < 0) {
+	grad(i) = -num_lim;
+      } else {
+	grad(i) = num_lim;
+      }
+    }
+  }
+  // limit gradient norm
+  auto grad_norm_L = [&] () {
+		       for (unsigned i = 0; i < grad.size(); ++i) {
+			 grad_norm += std::abs(grad(i));
+		       }
+		       grad_norm /= grad.size();
+		     };
+  grad_norm_L();
+  while (grad_norm > max_norm) {
+    grad /= 1e1;
+    grad_norm_L();
+  }
 }
 
 void BLP::objective_calc()
@@ -486,17 +538,17 @@ void BLP::objective_calc()
 
 void BLP::gmm(double nr_tol, double step_size, const unsigned max_iter)
 {
+  // local params
+  double max_theta = 5e4;
   unsigned iter_nbr = 0;
-  auto show_results = [&] (unsigned iter_nbr) {
-			double grad_size = 0;
-			for (unsigned i = 0; i < grad.size(); ++i) {
-			  grad_size += std::abs(grad(i));
-			}
-			grad_size /= grad.size();
-			this->objective_calc();
-			std::cout << "NR #iter: " << iter_nbr <<\
-			  "  Gradient size: " << grad_size <<\
-			  "  Objective value: " << obj_value << std::endl;
+  auto show_results_L = [&] (unsigned iter_nbr) {
+			  this->objective_calc();
+			  std::cout << "NR #iter: " << iter_nbr <<\
+			    "  Gradient norm: " << grad_norm <<\
+			    "  Objective value: " << obj_value << std::endl;
+			  std::cout << "Theta2: " << theta2(0) << '\t' <<\
+			    theta2(1) << '\t' <<  theta2(2) << '\t' << theta2(3)\
+				    << std::endl;
 		      };
     
   // contraction tol increase params
@@ -516,12 +568,14 @@ void BLP::gmm(double nr_tol, double step_size, const unsigned max_iter)
     }
     ctol_inc = false;
     for (unsigned i = 0; i < theta2.size(); ++i) {
-      theta2(i) -= grad(i) * step_size;
+      if (std::abs(theta2(i)) < max_theta) {
+	theta2(i) -= grad(i) * step_size;
+      }
       if (std::abs(grad(i)) > ctol_inc_size) {
 	ctol_inc = true;
       }
     }
-    std::thread(show_results, iter_nbr);
+    show_results_L(iter_nbr);
     if (iter_nbr == max_iter) {
       break;
     }

@@ -49,14 +49,16 @@ int main(int argc, char* argv[])
   //// Estimation params
   // num of draws
   unsigned ns = 100;
+  // numerical limit to avoid infs in s_calc and theta1
+  const double num_lim = 1e30;
   // initial params, sigma and pi; 1 (N dist) + 3 (log renda, log renda^2, age)
-  std::vector<double> theta2 = {-.0160785, .0118393, -.141934, .0655968};
+  std::vector<double> theta2 = {.01, .01, .01, .01};
   // Berry's contraction params
   double contract_tol = {1e-8};
   // Newton Raphson params
-  const double step_size = {1e-8};
+  const double step_size = {1e-2};
   const double nr_tol = {1e-8};
-  const unsigned max_iter = 100;
+  const unsigned max_iter = 200;
 
   /* END OF PARAMETERS */
 
@@ -76,7 +78,7 @@ int main(int argc, char* argv[])
 	      std::strcmp(argv[2], "estimation") == 0)) {
     // instantiate
     BLP inst_BLP(persist_file2, num_periods, num_bins_renda, num_bins_idade,\
-		 areas, ns, theta2, contract_tol);
+		 areas, ns, theta2, contract_tol, num_lim);
     // deserialize
     {
         std::ifstream ifs(persist_file);

@@ -19,8 +19,8 @@ public:
   BLP(const std::string persist_file2_, const unsigned num_periods, const\
       unsigned num_bins_renda, const unsigned num_bins_idade, const\
       std::vector<std::vector<unsigned>> areas, unsigned ns_,\
-      std::vector<double> theta2_, double contract_tol_, const unsigned\
-      max_threads=64);
+      std::vector<double> theta2_, double contract_tol_, const double num_lim_,\
+      const unsigned max_threads=64);
   ~BLP()
   {
     S.clear();
@@ -64,7 +64,9 @@ private:
   unsigned ns;
   unsigned num_threads;
   double contract_tol;
+  double num_lim;
   bool ctol_inc;  // following Nevo, contraction tol may initially increase
+  double grad_norm;
   double obj_value;
   ublas::vector<double> S;
   ublas::vector<double> delta;
