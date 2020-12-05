@@ -241,11 +241,11 @@ void BLP::calc_shares()
 void BLP::contraction()
 {
   // increase tol params
-  unsigned iters_nbr1 = 100;  // iterations before first increase
+  unsigned iters_nbr1 = 500;  // iterations before first increase
   unsigned iters_nbr2 = 50;  // number of iters for further increases
   unsigned tol_factor = 1e1;  // increase factor
-  unsigned max_iter = 1000;  // max number of iterations
-  double nan_penalty = 1e40;
+  unsigned max_iter = 1500;  // max number of iterations
+  double nan_penalty = 1e20;
   // init threads
   std::vector<std::thread> threads;
   unsigned j, k, block_size;
@@ -477,29 +477,51 @@ void BLP::calc_Ddelta()
     }
   }
   Ddelta_ = Ddelta_.inverse();
+  perturb = false;
   for (unsigned i = 0; i < Ddelta.size1(); ++i) {
     for (unsigned j = 0; j < Ddelta.size2(); ++j) {
       Ddelta(i, j) = Ddelta_(i, j);
       if (std::isnan(Ddelta(i, j))) {
-	this->persist();
-	throw std::runtime_error("NAN in Eigen inversion");
+	perturb = true;
       }
     }
   }
-  Ddelta = ublas::prod(Ddelta, Ddelta2[0]);
-  Ddelta *= -1;
+  if (!perturb) {
+    Ddelta = ublas::prod(Ddelta, Ddelta2[0]);
+    Ddelta *= -1;
+  } else {
+    this->perturb_params();
+  }
+}
+
+void BLP::perturb_params()
+{
+  std::random_device rd{};
+  std::mt19937 gen{rd()};
+  // local params
+  std::uniform_int_distribution<> d_uniform{0, 3};
+  std::normal_distribution<> d_normal{0, .5};
+
+  unsigned rand_i = d_uniform(gen);
+  theta2(rand_i) += d_normal(gen);
+  std::cout << "eigen inverse failed, perturbed params..." << std::endl;
+  std::cout << "new theta2: " << theta2(0) << '\t' << theta2(1) << '\t' <<\
+    theta2(2) << '\t' << theta2(3) << std::endl;
 }
 
 void BLP::grad_calc()
 {
   // local params
-  double max_norm = 1e2;
+  double max_norm = 1e3;  // sets gradient adjustment for large values
   
-  this->contraction();
-  this->calc_theta1();
-  // calc error term
-  omega = delta - ublas::prod(X1, theta1);
-  this->calc_Ddelta();
+  perturb = true;  // to enter while loop
+  while (perturb) {
+    this->contraction();
+    this->calc_theta1();
+    // calc error term
+    omega = delta - ublas::prod(X1, theta1);
+    this->calc_Ddelta();
+  }
   grad_aux = 2 * ublas::prod(ublas::trans(Ddelta), Z);
   grad_aux = ublas::prod(grad_aux, phi_inv);
   grad_aux = ublas::prod(grad_aux, ublas::trans(Z));

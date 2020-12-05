@@ -66,6 +66,7 @@ public:
   void calc_phi_inv();
   void calc_theta1();
   void calc_Ddelta();
+  void perturb_params();
   void grad_calc();
   void objective_calc();
   void gmm(double nr_tol, double step_size, const unsigned max_iter);
@@ -80,6 +81,7 @@ private:
   bool ctol_inc;  // following Nevo, contraction tol may initially increase
   double grad_norm;
   double obj_value;
+  bool perturb;
   ublas::vector<double> S;
   ublas::vector<double> delta;
   ublas::matrix<double> X1;

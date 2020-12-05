@@ -48,11 +48,11 @@ int main(int argc, char* argv[])
   const std::string persist_file2 = results_dir + "est_params/" + run_id;
   //// Estimation params
   // num of draws
-  unsigned ns = 100;
+  unsigned ns = 1000;
   // numerical limit to avoid infs in s_calc and theta1
-  const double num_lim = 1e30;
+  const double num_lim = 1e20;
   // initial params, sigma and pi; 1 (N dist) + 3 (log renda, log renda^2, age)
-  std::vector<double> theta2 = {.0118712, .00813021, -.0118847, .00226893};
+  std::vector<double> theta2 = {.1, .1, .1, .1};
   // Berry's contraction params
   double contract_tol = {1e-8};
   // Newton Raphson params
