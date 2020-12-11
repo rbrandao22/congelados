@@ -130,7 +130,7 @@ BLP::BLP(const std::string persist_file2_, const unsigned num_periods, const\
       // fill v & D
       v[draw_counter][0][i] = normal_dist(generator_n);
       D[draw_counter][0][i] = std::log(renda);
-      D[draw_counter][1][i] = std::pow(D[draw_counter][0][i], 2);
+      D[draw_counter][1][i] = std::log(std::pow(renda, 2));
       D[draw_counter][2][i] = idade;
     }
   }
@@ -331,7 +331,6 @@ void BLP::calc_phi_inv()
 
 void BLP::calc_theta1()
 {
-  this->calc_phi_inv();
   ublas::matrix<double> aux_mat1;
   ublas::matrix<double> aux_mat1_inv;
   ublas::matrix<double> aux_mat2;
@@ -581,6 +580,7 @@ void BLP::gmm(double nr_tol, double step_size, const unsigned max_iter)
   ctol_inc = true;
   double ctol_inc_size = .01;
   // GMM  
+  this->calc_phi_inv();  // homoscedastic assumption takes only one computation
   while (true) {
     this->grad_calc();
     bool halt_check = true;
@@ -589,8 +589,8 @@ void BLP::gmm(double nr_tol, double step_size, const unsigned max_iter)
 	halt_check = false;
       }
     }
-    if (halt_check || ctol_inc == false) {
-      break;
+    if (halt_check || ctol_inc == false) {  // to test ctol_inc false cont
+      break;                                // (remove from if clause later)
     }
     ctol_inc = false;
     for (unsigned i = 0; i < theta2.size(); ++i) {
@@ -605,7 +605,7 @@ void BLP::gmm(double nr_tol, double step_size, const unsigned max_iter)
     if (iter_nbr == max_iter) {
       break;
     }
-    if (iter_nbr > 0 && iter_nbr % 50 == 0) {
+    if (iter_nbr > 0 && iter_nbr % 10 == 0) {
       this->persist();
     }
     ++iter_nbr;
