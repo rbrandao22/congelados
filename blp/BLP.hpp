@@ -20,7 +20,7 @@ public:
       unsigned num_bins_renda, const unsigned num_bins_idade, const\
       std::vector<std::vector<unsigned>> areas, unsigned ns_,\
       std::vector<double> theta2_, double contract_tol_, const double num_lim_,\
-      const unsigned max_threads=64);
+      const unsigned max_threads=1);
   ~BLP()
   {
     S.clear();
