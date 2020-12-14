@@ -137,7 +137,7 @@ GenArrays::GenArrays(const unsigned num_periods, const\
 	  } else {
 	    Z(i, col) = 0;
 	  }
-	++col;
+	  ++col;
 	}
       }
       ++i;
