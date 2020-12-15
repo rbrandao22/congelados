@@ -1,4 +1,6 @@
 *~
+*.o
 dados/
+main
 python_blp/results/
 cpp_blp/results/
