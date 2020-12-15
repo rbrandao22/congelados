@@ -130,7 +130,7 @@ BLP::BLP(const std::string persist_file2_, const unsigned num_periods, const\
       // fill v & D
       v[draw_counter][0][i] = normal_dist(generator_n);
       D[draw_counter][0][i] = std::log(renda);
-      D[draw_counter][1][i] = std::pow(std::log(renda), 2));
+      D[draw_counter][1][i] = std::pow(std::log(renda), 2);
       D[draw_counter][2][i] = idade;
     }
   }

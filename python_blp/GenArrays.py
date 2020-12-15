@@ -4,6 +4,7 @@ import pdb
 import random
 
 import numpy as np
+import pickle
 import psycopg2
 
 
@@ -128,6 +129,10 @@ class GenArrays:
         self.Z = np.delete(self.Z, nan_rows, axis=0)
         self.mkt_id = np.delete(self.mkt_id, nan_rows, axis=0)
         self.area_id = np.delete(self.area_id, nan_rows, axis=0)
+
+        # rescale prices
+        self.X1[:, 0] /= 100.
+        self.X2[:, 0] /= 100.
     
     def gen_random_vars(self, areas, ns, num_bins_renda, num_bins_idade):
         try:
@@ -204,6 +209,11 @@ class GenArrays:
                         idade = dict_idades_data[j][1]
                         j = num_bins_idade
 
+                # rescale variables
+                renda /= 1000.
+                idade /= 100.
+
+                # fill arrays
                 self.v[draw_counter][i] = random.normalvariate(0., 1.)
                 self.D_0[draw_counter][i] = np.log(renda)
                 self.D_1[draw_counter][i] = np.log(renda)**2
@@ -214,8 +224,20 @@ class GenArrays:
         cur.close()
         conn.close()
 
-    def save_arrays(self):
-        pass
+    def save_arrays(self,save_dir):
+        save_data = {"S": self.S, "delta": self.delta, "X1": self.X1, "X2":\
+                     self.X2, "Z": self.Z, "mkt_id": self.mkt_id, "area_id":\
+                     self.area_id, "v": self.v, "D_0": self.D_0, "D_1":\
+                     self.D_1, "D_2": self.D_2}
+        for name, array in save_data.items():
+            filename = save_dir + name + ".pkl"
+            try:
+                os.remove(filename)
+            except OSError:
+                pass
+            with open(filename, 'wb') as array_file:
+                pickle.dump(array, array_file)
+            print(name + " array made persistent in file")
 
         
 if __name__ == "__main__":
@@ -225,7 +247,8 @@ if __name__ == "__main__":
     ns = 100  # number of draws from population
     num_bins_renda = 7
     num_bins_idade = 12
+    save_dir = "results/arrays/"
     inst = GenArrays(num_periods, areas)
     inst.elim_nans()
     inst.gen_random_vars(areas, ns, num_bins_renda, num_bins_idade)
-    inst.save_arrays()
+    inst.save_arrays(save_dir)
