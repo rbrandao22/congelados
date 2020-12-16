@@ -3,4 +3,5 @@
 dados/
 main
 python_blp/results/
+python_blp/results/arrays/
 cpp_blp/results/

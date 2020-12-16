@@ -203,7 +203,11 @@ class EmpModel:
     
     def gmm2(self):
         self.calc_phi_inv()
-        minimize(self.objective_calc2, self.theta2, method="Nelder-Mead")
+        sol = minimize(self.objective_calc2, self.theta2, method="Nelder-Mead",\
+                       options={"disp": True})
+        sol.x
+        persist(params_dir + "theta1_NM", self.theta1)
+        persist(params_dir + "theta2_NM", self.theta2)
         
     def calc_share_derivs(self):
         pass
@@ -230,7 +234,7 @@ if __name__ == "__main__":
     areas_size = 7
     arrays_dir = "results/arrays/"
     params_dir = "results/"
-    theta2 = [-3.44528209, 5.26614013, 14.12727479, 0.41126334]
+    theta2 = [-0.86562791, -3.61431826, 15.34909192, -0.82751751]
     contract_tol = 1e-12
     opt_tol = 1e-4
     step_size = 1e-2
