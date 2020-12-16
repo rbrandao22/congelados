@@ -22,7 +22,7 @@ class GenArrays:
             print("Unable to connect do database")
         cur = conn.cursor()
         
-        # fill observed shares - S, and mkt_id
+        # fill observed shares - S, mkt_id and brf_id
         shares_query = "SELECT * FROM lanches_shares;"
         cur.execute(shares_query)
         shares_data = cur.fetchall()
@@ -31,13 +31,18 @@ class GenArrays:
         self.S = np.empty([num_prods * num_mkts])
         self.S = self.S[:, np.newaxis]
         self.mkt_id = np.empty([num_prods * num_mkts], dtype=int)
+        self.brf_id = np.zeros([num_prods * num_mkts], dtype=int)
         i = 0
         mkt_counter = 0
         for t in range(num_mkts):
+            prod_counter = 0
             for row in shares_data:
                 self.S[i] = row[t+1]
                 self.mkt_id[i] = mkt_counter
+                if (prod_counter == 0 or prod_counter == 1):
+                    self.brf_id[i] = 1
                 i += 1
+                prod_counter += 1
             mkt_counter += 1
 
         # fill delta (initial value log S_jt = log S_0t)
@@ -128,6 +133,7 @@ class GenArrays:
         self.X2 = np.delete(self.X2, nan_rows, axis=0)
         self.Z = np.delete(self.Z, nan_rows, axis=0)
         self.mkt_id = np.delete(self.mkt_id, nan_rows, axis=0)
+        self.brf_id = np.delete(self.brf_id, nan_rows, axis=0)
         self.area_id = np.delete(self.area_id, nan_rows, axis=0)
         self.outgood_id = np.delete(self.outgood_id, nan_rows, axis=0)
 
@@ -227,9 +233,10 @@ class GenArrays:
 
     def save_arrays(self,save_dir):
         save_data = {"S": self.S, "delta": self.delta, "X1": self.X1, "X2":\
-                     self.X2, "Z": self.Z, "mkt_id": self.mkt_id, "area_id":\
-                     self.area_id, "outgood_id": self.outgood_id, "v": self.v,\
-                     "D_0": self.D_0, "D_1": self.D_1, "D_2": self.D_2}
+                     self.X2, "Z": self.Z, "mkt_id": self.mkt_id, "brf_id":\
+                     self.brf_id, "area_id": self.area_id, "outgood_id":\
+                     self.outgood_id, "v": self.v, "D_0": self.D_0, "D_1":\
+                     self.D_1, "D_2": self.D_2}
         for name, array in save_data.items():
             filename = save_dir + name + ".pkl"
             try:

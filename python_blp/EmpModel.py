@@ -38,6 +38,7 @@ class EmpModel:
         self.X2 = obj_load(arrays_dir, "X2")
         self.Z = obj_load(arrays_dir, "Z")
         self.mkt_id = obj_load(arrays_dir, "mkt_id")
+        self.brf_id = obj_load(arrays_dir, "brf_id")
         self.area_id = obj_load(arrays_dir, "area_id")
         self.outgood_id = obj_load(arrays_dir, "outgood_id")
         self.v = obj_load(arrays_dir, "v")
@@ -96,35 +97,37 @@ class EmpModel:
                           self.X1) @ self.X1.T @ self.Z @ self.phi_inv @\
                           self.Z.T @ self.delta
 
+    # calc derivatives of mean values w/ respect to params (for grad eval)
     def calc_Ddelta(self):
+        i = 0
         # initialize first matrix
-        Ddelta1 = -1 * np.outer(self.s_jti[:, 0], self.s_jti[:, 0])
-        np.fill_diagonal(Ddelta1, Ddelta1.diagonal() + self.s_jti[:, 0])
+        Ddelta1 = -1. * np.outer(self.s_jti[:, i], self.s_jti[:, i])
+        np.fill_diagonal(Ddelta1, Ddelta1.diagonal() + self.s_jti[:, i])
         # init second
         Ddelta2 = np.empty([self.S.shape[0], 4])
         for area in range(self.areas_size):
             idxs = np.where(self.area_id == area)[0]
-            Ddelta2[idxs, 0] = self.v[0, area] * self.s_jti[idxs, 0] *\
+            Ddelta2[idxs, 0] = self.v[i, area] * self.s_jti[idxs, i] *\
                 self.X2[idxs][:, 0]
-            Ddelta2[idxs, 1] = self.D_0[0, area] * self.s_jti[idxs, 0] *\
+            Ddelta2[idxs, 1] = self.D_0[i, area] * self.s_jti[idxs, i] *\
                 self.X2[idxs][:, 0]
-            Ddelta2[idxs, 2] = self.D_1[0, area] * self.s_jti[idxs, 0] *\
+            Ddelta2[idxs, 2] = self.D_1[i, area] * self.s_jti[idxs, i] *\
                 self.X2[idxs][:, 0]
-            Ddelta2[idxs, 3] = self.D_2[0, area] * self.s_jti[idxs, 0] *\
+            Ddelta2[idxs, 3] = self.D_2[i, area] * self.s_jti[idxs, i] *\
                 self.X2[idxs][:, 0]
             for idx in idxs:
                 idxs_mkt = np.where(self.mkt_id == self.mkt_id[idx])[0]
                 idxs_mkt = idxs_mkt[:, np.newaxis]
                 idxs_mkt = np.delete(idxs_mkt, np.where(idxs_mkt == idx))
                 aux_sum = np.sum(self.X2[idxs_mkt][:, 0] *\
-                                 self.s_jti[idxs_mkt, 0])
-                Ddelta2[idx, 0] -= self.v[0, area] * self.s_jti[idx, 0] *\
+                                 self.s_jti[idxs_mkt, i])
+                Ddelta2[idx, 0] -= self.v[i, area] * self.s_jti[idx, i] *\
                     aux_sum
-                Ddelta2[idx, 1] -= self.D_0[0, area] * self.s_jti[idx, 0] *\
+                Ddelta2[idx, 1] -= self.D_0[i, area] * self.s_jti[idx, i] *\
                     aux_sum
-                Ddelta2[idx, 2] -= self.D_1[0, area] * self.s_jti[idx, 0] *\
+                Ddelta2[idx, 2] -= self.D_1[i, area] * self.s_jti[idx, i] *\
                     aux_sum
-                Ddelta2[idx, 3] -= self.D_2[0, area] * self.s_jti[idx, 0] *\
+                Ddelta2[idx, 3] -= self.D_2[i, area] * self.s_jti[idx, i] *\
                     aux_sum
                               
         for i in range(1, self.ns):
@@ -173,8 +176,9 @@ class EmpModel:
     def objective_calc(self):
         self.obj_value = self.omega.T @ self.Z @ self.phi_inv @ self.Z.T @\
             self.omega
-    
-    def gmm(self, opt_tol, step_size):
+
+    # Direct Search GMM implementation
+    def gmm_DS(self, opt_tol, step_size):
         self.calc_phi_inv() # homoscedastic assumption takes only one calc
         while True:
             self.grad_calc()
@@ -200,27 +204,70 @@ class EmpModel:
         self.obj_value = self.omega.T @ self.Z @ self.phi_inv @ self.Z.T @\
             self.omega
         return self.obj_value
-    
-    def gmm2(self):
+
+    def callbackF(self, theta2):
+        print("Objective: ", self.obj_value[0][0])
+        print("theta2: ", self.theta2)
+
+    # Nelder Mead GMM implementation using SciPy
+    def gmm_NM(self):
         self.calc_phi_inv()
         sol = minimize(self.objective_calc2, self.theta2, method="Nelder-Mead",\
-                       options={"disp": True})
+                       callback=self.callbackF, options={"maxiter": 1e4,\
+                                                         "disp": True})
         sol.x
         persist(params_dir + "theta1_NM", self.theta1)
         persist(params_dir + "theta2_NM", self.theta2)
-        
-    def calc_share_derivs(self):
-        pass
 
+    # calc share derivatives w/ respect to prices (enter firms' FOCs) 
+    def calc_share_derivs(self):
+        self.contraction()
+        self.calc_phi_inv()
+        self.calc_theta1()
+        i = 0
+        alpha_s_jti = self.s_jti[:, i]
+        for area in range(self.areas_size):
+            idxs = np.where(self.area_id == area)[0]
+            alpha_s_jti[idxs] *= self.theta1[0] + self.theta2[1] *\
+                self.D_0[i, area] + self.theta2[0] * self.v[i, area]
+                              
+        self.share_derivs = np.outer(alpha_s_jti, self.s_jti[:, i])
+        np.fill_diagonal(self.share_derivs, self.share_derivs.diagonal() -\
+                         alpha_s_jti)
+        for i in range(1, self.ns):
+            alpha_s_jti = self.s_jti[:, i]
+            for area in range(self.areas_size):
+                idxs = np.where(self.area_id == area)[0]
+                alpha_s_jti[idxs] *= self.theta1[0] + self.theta2[1] *\
+                    self.D_0[i, area] + self.theta2[0] * self.v[i, area]
+                                  
+            aux_share_derivs = np.outer(alpha_s_jti, self.s_jti[:, i])
+            np.fill_diagonal(aux_share_derivs, aux_share_derivs.diagonal() -\
+                             alpha_s_jti)
+            self.share_derivs += aux_share_derivs
+
+        self.share_derivs /= self.ns
+
+    # brands ownership structure
     def calc_Omega(self):
-        pass
+        self.Omega = np.outer(self.brf_id, self.brf_id)
+        np.fill_diagonal(self.Omega, np.ones(self.Omega.shape[0]))
+
+    def calc_mc(self):
+        self.calc_Omega()
+        self.mc = self.X2 - inv(self.Omega @ self.share_derivs) @ self.calc
 
     def supp_obj(self, X_p):
         self.X2 = X_p
-        onesA = np.ones(self.X2.shape)
-        return self.X2 - onesA
+        self.X1[:, 0] = X_p[:, 0]
+        self.calc_share_derivs()
+        return self.s_calc - self.Omega @ self.share_derivs @ (X_p - self.mc)
+        #onesA = np.ones(self.X2.shape)
+        #return self.X2 - onesA
 
     def supp_call(self):
+        self.calc_share_derivs()
+        self.calc_mc()
         X_p = self.X2
         sol = root(self.supp_obj, X_p)
         print(sol.x)
@@ -228,20 +275,27 @@ class EmpModel:
 
     
 if __name__ == "__main__":
-    # params
+    ## params
     ns = 100 # changing requires running GenArrays w/ same ns first
     num_periods = 18
     areas_size = 7
     arrays_dir = "results/arrays/"
     params_dir = "results/"
-    theta2 = [-0.86562791, -3.61431826, 15.34909192, -0.82751751]
+    theta2 = [-12.4, 137.2, -27.7, -14.5]
+    # Berry's contraction tolerance
     contract_tol = 1e-12
+    # Direct Search params
     opt_tol = 1e-4
     step_size = 1e-2
+    # Nelder-Mead params
+    max_iter = 1e4
 
-    # instantiate and call
+    ## instantiate and call
     inst = EmpModel(ns, num_periods, areas_size, arrays_dir, params_dir,\
                     theta2, contract_tol)
-    #inst.gmm(opt_tol, step_size)
-    inst.gmm2()
-    #inst.supp_call()
+    ## demand estimation - two options, Direct Search or Nelder-Mead
+    #inst.gmm_DS(opt_tol, step_size)
+    #inst.gmm_NM(max_iter)
+
+    ## supply analysis of price eq 
+    inst.supp_call()
