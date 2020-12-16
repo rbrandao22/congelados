@@ -30,8 +30,7 @@ class GenArrays:
         num_prods = len(shares_data)
         self.S = np.empty([num_prods * num_mkts])
         self.S = self.S[:, np.newaxis]
-        self.mkt_id = np.empty([num_prods * num_mkts])
-        self.mkt_id = self.mkt_id[:, np.newaxis]
+        self.mkt_id = np.empty([num_prods * num_mkts], dtype=int)
         i = 0
         mkt_counter = 0
         for t in range(num_mkts):
@@ -51,9 +50,10 @@ class GenArrays:
                     np.log(self.S[(t+1) * num_prods - 1])
             self.delta[(t+1) * num_prods - 1] = 0.
 
-        # fill X2 - precos
+        # fill X2 - precos, and outgood_id
         self.X2 = np.empty([num_prods * num_mkts])
         self.X2 = self.X2[:, np.newaxis]
+        self.outgood_id = np.zeros([num_prods * num_mkts], dtype=int)
         precos_query = "SELECT * FROM lanches_precos;"
         cur.execute(precos_query)
         precos_data = cur.fetchall()
@@ -63,13 +63,13 @@ class GenArrays:
                 self.X2[i] = row[t+1]
                 i += 1
             self.X2[i] = 0.
+            self.outgood_id[i] = 1
             i += 1
 
         # fill X1 - precos, area dummies e brand dummies & area_id
         self.X1 = np.empty([num_prods * num_mkts, 1 + len(areas) + num_prods -\
                             2])
-        self.area_id = np.empty([num_prods * num_mkts])
-        self.area_id = self.area_id[:, np.newaxis]
+        self.area_id = np.empty([num_prods * num_mkts], dtype=int)
         i = 0
         for t in range(num_mkts):
             area = t // num_periods
@@ -129,6 +129,7 @@ class GenArrays:
         self.Z = np.delete(self.Z, nan_rows, axis=0)
         self.mkt_id = np.delete(self.mkt_id, nan_rows, axis=0)
         self.area_id = np.delete(self.area_id, nan_rows, axis=0)
+        self.outgood_id = np.delete(self.outgood_id, nan_rows, axis=0)
 
         # rescale prices
         self.X1[:, 0] /= 100.
@@ -227,8 +228,8 @@ class GenArrays:
     def save_arrays(self,save_dir):
         save_data = {"S": self.S, "delta": self.delta, "X1": self.X1, "X2":\
                      self.X2, "Z": self.Z, "mkt_id": self.mkt_id, "area_id":\
-                     self.area_id, "v": self.v, "D_0": self.D_0, "D_1":\
-                     self.D_1, "D_2": self.D_2}
+                     self.area_id, "outgood_id": self.outgood_id, "v": self.v,\
+                     "D_0": self.D_0, "D_1": self.D_1, "D_2": self.D_2}
         for name, array in save_data.items():
             filename = save_dir + name + ".pkl"
             try:
