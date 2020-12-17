@@ -228,11 +228,22 @@ class EmpModel:
         self.contraction()
         self.calc_theta1()
         self.omega = self.delta - self.X1 @ self.theta1
-        self.obj_value = self.omega.T @ self.Z @ self.phi_inv @ self.Z.T @\
-            self.omega
         # variance calc
-        n = self.delta.shape[0]
-        omega_matrix = np.zeros(self.Z.shape[1], self.Z.shape[1])
+        n = int(self.delta.shape[0])
+        omega_matrix = np.zeros([self.Z.shape[1], self.Z.shape[1]])
+        Q_xz = 1./n * self.X1.T @ self.Z
+        Q_zz = 1./n * self.Z.T @ self.Z
+        Q_zx = 1./n * self.Z.T @ self.X1
+        for jt in range(n):
+            Z_jt = self.Z[jt].T[:, np.newaxis]
+            omega_matrix += Z_jt @ Z_jt.T * self.omega[jt] ** 2
+            
+        omega_matrix /= n
+        var_theta1 = inv(Q_xz @ inv(Q_zz) @ Q_zx) @\
+            (Q_xz @ inv(Q_zz) @ omega_matrix @ inv(Q_zz) @ Q_zx) @\
+            inv(Q_xz @ inv(Q_zz) @ Q_zx)
+        std_dev_theta1 = np.diagonal(var_theta1) ** .5
+        persist(self.params_dir + "std_dev_theta1", std_dev_theta1)
 
     ## Supply analysis
     # calc share derivatives w/ respect to prices (enter firms' FOCs) 
