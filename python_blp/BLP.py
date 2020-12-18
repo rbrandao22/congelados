@@ -3,7 +3,7 @@ import pickle
 
 import numpy as np
 from numpy.linalg import inv
-from scipy.optimize import root, minimize
+from scipy.optimize import minimize
 
 
 def obj_load(directory, obj_name):
@@ -25,7 +25,7 @@ def persist(filename, obj):
     print("File " + filename + " saved")
     
 
-class EmpModel:
+class BLP:
     '''
     Estimation of demand params and supply side analysis using empirical model
     '''
@@ -72,7 +72,7 @@ class EmpModel:
                 mkt_sum = np.sum(self.s_jti[idxs, i])
                 self.s_jti[idxs, i] /= mkt_sum
 
-        self.s_calc = self.s_jti.sum(axis=1) / ns
+        self.s_calc = self.s_jti.sum(axis=1) / self.ns
         self.s_calc = self.s_calc[:, np.newaxis]
 
     def contraction(self):
@@ -219,120 +219,3 @@ class EmpModel:
         sol.x
         persist(self.params_dir + "theta1_NM", self.theta1)
         persist(self.params_dir + "theta2_NM", self.theta2)
-
-    def covariance(self, params_file):
-        # load estimated params
-        self.theta2 = obj_load(self.params_dir, params_file)
-        # recalc other vars
-        self.calc_phi_inv()
-        self.contraction()
-        self.calc_theta1()
-        self.omega = self.delta - self.X1 @ self.theta1
-        # variance calc
-        n = int(self.delta.shape[0])
-        omega_matrix = np.zeros([self.Z.shape[1], self.Z.shape[1]])
-        Q_xz = 1./n * self.X1.T @ self.Z
-        Q_zz = 1./n * self.Z.T @ self.Z
-        Q_zx = 1./n * self.Z.T @ self.X1
-        for jt in range(n):
-            Z_jt = self.Z[jt].T[:, np.newaxis]
-            omega_matrix += Z_jt @ Z_jt.T * self.omega[jt] ** 2
-            
-        omega_matrix /= n
-        var_theta1 = inv(Q_xz @ inv(Q_zz) @ Q_zx) @\
-            (Q_xz @ inv(Q_zz) @ omega_matrix @ inv(Q_zz) @ Q_zx) @\
-            inv(Q_xz @ inv(Q_zz) @ Q_zx)
-        std_dev_theta1 = np.diagonal(var_theta1) ** .5
-        persist(self.params_dir + "std_dev_theta1", std_dev_theta1)
-
-    ## Supply analysis
-    # calc share derivatives w/ respect to prices (enter firms' FOCs) 
-    def calc_share_derivs(self):
-        self.contraction()
-        self.calc_phi_inv()
-        self.calc_theta1()
-        # allocate share_derivs
-        num_mkts = len(np.unique(self.mkt_id))
-        self.share_derivs = np.empty(num_mkts, self.num_prods, self.num_prods)
-        
-        for mkt in np.unique(self.mkt_id):
-            idxs = np.where(self.mkt_id == mkt)[0][:-1] # outgood excluded
-            i = 0
-            alpha_s_jti = self.s_jti[idxs_m, i]
-            area = self.area_id[idxs[0]] # get mkt area
-            alpha_s_jti *= self.theta1[0] + self.theta2[1] * self.D_0[i, area] +\
-                self.theta2[0] * self.v[i, area]
-                                  
-            self.share_derivs[mkt] = np.outer(alpha_s_jti, self.s_jti[idxs_m, i])
-            np.fill_diagonal(self.share_derivs, self.share_derivs.diagonal() -\
-                             alpha_s_jti)
-            for i in range(1, self.ns):
-                alpha_s_jti = self.s_jti[:, i]
-                for area in range(self.areas_size):
-                    idxs_a = np.where(self.area_id == area)[0]
-                    alpha_s_jti[idxs_a] *= self.theta1[0] + self.theta2[1] *\
-                        self.D_0[i, area] + self.theta2[0] * self.v[i, area]
-                                      
-                aux_share_derivs = np.outer(alpha_s_jti, self.s_jti[:, i])
-                np.fill_diagonal(aux_share_derivs, aux_share_derivs.diagonal() -\
-                                 alpha_s_jti)
-                self.share_derivs += aux_share_derivs
-    
-            self.share_derivs[mkt] /= self.ns
-
-    # brands ownership structure
-    def calc_Omega(self):
-        self.Omega = np.outer(self.brf_id, self.brf_id)
-        np.fill_diagonal(self.Omega, np.ones(self.Omega.shape[0]))
-
-    def calc_mc(self):
-        self.calc_Omega()
-        self.mc = self.X2 - inv(self.Omega @ self.share_derivs) @ self.calc
-
-    def supp_obj(self, X_p):
-        self.X2 = X_p
-        self.X1[:, 0] = X_p[:, 0]
-        self.calc_share_derivs()
-        return self.s_calc - self.Omega @ self.share_derivs @ (X_p - self.mc)
-        #onesA = np.ones(self.X2.shape)
-        #return self.X2 - onesA
-
-    def supp_call(self):
-        self.calc_share_derivs()
-        self.calc_mc()
-        X_p = self.X2
-        sol = root(self.supp_obj, X_p)
-        print(sol.x)
-        
-
-    
-if __name__ == "__main__":
-    ## params
-    ns = 100 # changing requires running GenArrays w/ same ns first
-    num_periods = 18
-    num_prods = 7
-    areas_size = 7
-    arrays_dir = "results/arrays/"
-    params_dir = "results/"
-    theta2 = [-1.236782388379513620e+01, 1.372797353462765955e+02,\
-              -2.774276330431434090e+01, -1.452987620460547902e+01]
-  
-    # Berry's contraction tolerance
-    contract_tol = 1e-12
-    # Direct Search params
-    opt_tol = 1e-4
-    step_size = 1e-2
-    # Nelder-Mead params
-    max_iter = 1 #1e4
-
-    ## instantiate and call
-    inst = EmpModel(ns, num_periods, num_prods, areas_size, arrays_dir,\
-                    params_dir, theta2, contract_tol)
-    
-    ## demand estimation - two options, Direct Search or Nelder-Mead
-    #inst.gmm_DS(opt_tol, step_size)
-    #inst.gmm_NM(max_iter)
-    inst.covariance("theta2_NM")
-
-    ## supply analysis of price eq 
-    #inst.supp_call()

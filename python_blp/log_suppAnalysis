@@ -1,0 +1,11 @@
+@vm-a 20:55:43 ~/congelados/python_blp$ python3 main.py
+iter supp
+iter supp
+/home/rbrandao/congelados/python_blp/BLP.py:68: RuntimeWarning: overflow encountered in exp
+  self.theta2[3] * self.D_2[i, area])\
+/home/rbrandao/congelados/python_blp/BLP.py:73: RuntimeWarning: invalid value encountered in true_divide
+  self.s_jti[idxs, i] /= mkt_sum
+/home/rbrandao/congelados/python_blp/BLP.py:86: RuntimeWarning: divide by zero encountered in log
+  new_delta = np.log(exp_delta1)
+/home/rbrandao/congelados/python_blp/BLP.py:84: RuntimeWarning: invalid value encountered in true_divide
+  exp_delta1 = exp_delta0 * self.S[idxs] / self.s_calc[idxs]
