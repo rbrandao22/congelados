@@ -34,3 +34,10 @@ class Diagnostics(BLP):
             inv(Q_xz @ inv(Q_zz) @ Q_zx)
         std_dev_theta1 = np.diagonal(var_theta1) ** .5
         persist(self.params_dir + "std_dev_theta1", std_dev_theta1)
+
+    def desc_stats(self):
+        # average prices
+        avg_prices = {}
+        for prod in np.sort(np.unique(self.prod_id))[:-1]:
+            for area in np.unique(self.area_id):
+                avg_prices[str(prod)+"_"+str(area)] = np.average(self.X2)

@@ -1,3 +1,6 @@
+import os
+from contextlib import redirect_stdout
+
 import numpy as np
 from numpy.linalg import inv
 from scipy.optimize import root
@@ -21,7 +24,7 @@ class SupplyAnalysis(BLP):
         num_mkts = len(np.unique(self.mkt_id))
         self.share_derivs = {}
         for mkt in np.unique(self.mkt_id):
-            idxs = np.where(self.mkt_id == mkt)[0][:-1] # outgood excluded
+            idxs = np.sort(np.where(self.mkt_id == mkt)[0])[:-1] # outgood excluded
             i = 0
             alpha_s_jti = self.s_jti[idxs, i]
             area = self.area_id[idxs[0]] # get mkt area
@@ -50,7 +53,7 @@ class SupplyAnalysis(BLP):
     def calc_Omega(self):
         self.Omega = {}
         for mkt in np.unique(self.mkt_id):
-            idxs = np.where(self.mkt_id == mkt)[0][:-1]
+            idxs = np.sort(np.where(self.mkt_id == mkt)[0])[:-1]
             self.Omega[str(mkt)] = np.outer(self.brf_id[idxs], self.brf_id[idxs])
             np.fill_diagonal(self.Omega[str(mkt)],\
                              np.ones(self.Omega[str(mkt)].shape[0]))
@@ -61,15 +64,15 @@ class SupplyAnalysis(BLP):
         self.calc_Omega()
         self.mc = {}
         for mkt in np.unique(self.mkt_id):
-            idxs = np.where(self.mkt_id == mkt)[0][:-1]
+            idxs = np.sort(np.where(self.mkt_id == mkt)[0])[:-1]
             self.mc[str(mkt)] = self.X2[idxs] - inv(self.Omega[str(mkt)] *\
                                                     self.share_derivs[str(mkt)])\
                                                     @ self.s_calc[idxs]
 
-    # calc_prices under new offer structure (one firm for each brand)
-    def new_prices(self):
+    # optimal pricing under new offer structure (one firm for each brand)
+    def firms_FOCs(self):
         for mkt in np.unique(self.mkt_id):
-            idxs = np.where(self.mkt_id == mkt)[0][:-1]
+            idxs = np.sort(np.where(self.mkt_id == mkt)[0])[:-1]
             Omega = np.identity(self.Omega[str(mkt)].shape[0])
             self.X2[idxs] = self.mc[str(mkt)] + inv(Omega *\
                                                     self.share_derivs[str(mkt)])\
@@ -77,15 +80,32 @@ class SupplyAnalysis(BLP):
             self.X1[idxs, 0] = self.X2[idxs][:, 0]
         
     def supp_obj(self, X_p):
+        self.X_p = X_p #[:, np.newaxis] (term needed for hybr & lm methods)
+        self.X2 = np.copy(self.X_p)
+        self.X1[:, 0] = np.copy(self.X_p[:, 0])
         self.calc_share_derivs()
-        X_p = np.copy(self.X2)
-        self.new_prices()
-        print("iter supp")
-        return (self.X2 - X_p)[:, 0]
+        self.firms_FOCs()
+        diff = self.X2 - self.X_p
+        max_diff = abs(max(diff.min(), diff.max(), key=abs))
+        with open(self.params_dir+"krylov_diff", 'a') as diff_file:
+            diff_file.write(str(max_diff)+"\n")
+        self.iter_counter += 1
+        if self.iter_counter % 20 == 0:
+            persist(self.params_dir + "X_p", self.X_p)
+        return (self.X2 - self.X_p)[:, 0]
 
     def supp_call(self, params_file):
         self.theta2 = obj_load(self.params_dir, params_file)
         self.calc_mc()
-        X_p = np.copy(self.X2)
-        sol = root(self.supp_obj, X_p)
-        print(sol.x)
+        try:
+            os.remove(self.params_dir+"krylov_diff")
+        except OSError:
+            pass
+        self.iter_counter = 0
+        X_p = obj_load(self.params_dir, "X_p")
+        sol = root(self.supp_obj, X_p, method="krylov")
+        with open(self.params_dir+"root_sol", 'w') as f:
+            with redirect_stdout(f):
+                print(sol.x)
+        self.X_p = np.copy(self.X2)
+        persist(self.params_dir + "X_p", self.X_p)

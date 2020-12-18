@@ -51,7 +51,8 @@ def main(run_option):
     elif run_option == "diagnostics":
         inst = Diagnostics(ns, num_periods, num_prods, areas_size, arrays_dir,\
                            params_dir, theta2, contract_tol)
-        inst.covariance("theta2_NM")
+        #inst.covariance("theta2_NM")
+        inst.desc_stats()
 
     elif run_option == "supplyAnalysis":
         inst = SupplyAnalysis(ns, num_periods, num_prods, areas_size, arrays_dir,\
@@ -62,4 +63,4 @@ def main(run_option):
 
         
 if __name__ == "__main__":
-    main("supplyAnalysis")
+    main("diagnostics")
