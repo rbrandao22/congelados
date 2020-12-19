@@ -4,4 +4,8 @@ dados/
 main
 python_blp/results/
 python_blp/results/arrays/
+python_blp/results/bkp/
+python_blp/results_2e2/
+python_blp/results_2e2/arrays/
+python_blp/results_2e2/bkp/
 cpp_blp/results/

@@ -36,8 +36,33 @@ class Diagnostics(BLP):
         persist(self.params_dir + "std_dev_theta1", std_dev_theta1)
 
     def desc_stats(self):
-        # average prices
+        # averages from data
         avg_prices = {}
+        avg_shares = {}
+        # average from counterfactual new eq prices
+        X_p = obj_load(self.params_dir, "X_p")
+        avg_neq_prices = {}
         for prod in np.sort(np.unique(self.prod_id))[:-1]:
+            avg_prices[str(prod)] = {}
+            avg_shares[str(prod)] = {}
+            avg_neq_prices[str(prod)] = {}
             for area in np.unique(self.area_id):
-                avg_prices[str(prod)+"_"+str(area)] = np.average(self.X2)
+                avg_prices[str(prod)][str(area)] =\
+                    np.mean(self.X2[np.intersect1d(np.where(self.prod_id ==\
+                                                            prod),\
+                                                   np.where(self.area_id ==\
+                                                            area))])
+                avg_shares[str(prod)][str(area)] =\
+                    np.mean(self.S[np.intersect1d(np.where(self.prod_id ==\
+                                                            prod),\
+                                                   np.where(self.area_id ==\
+                                                            area))])
+                avg_neq_prices[str(prod)][str(area)] =\
+                    np.mean(X_p[np.intersect1d(np.where(self.prod_id ==\
+                                                        prod),\
+                                               np.where(self.area_id ==\
+                                                        area))])
+        persist(self.params_dir + "avg_prices", avg_prices, False)
+        persist(self.params_dir + "avg_shares", avg_shares, False)
+        persist(self.params_dir + "avg_neq_prices", avg_neq_prices,\
+                False)

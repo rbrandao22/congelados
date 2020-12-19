@@ -1,3 +1,5 @@
+import time
+
 from GenArrays import GenArrays
 from BLP import BLP
 from Diagnostics import Diagnostics
@@ -5,7 +7,7 @@ from SupplyAnalysis import SupplyAnalysis
 
 def main(run_option):
     ## common params
-    ns = 100
+    ns = 200
     num_periods = 18
 
     ## GenArrays params
@@ -13,22 +15,25 @@ def main(run_option):
              [21, 22, 23], [24, 26, 27]]
     num_bins_renda = 7
     num_bins_idade = 12
-    save_dir = "results/arrays/"
+    save_dir = "results_2e2/arrays/"
 
     ## other params
     num_prods = 7
     areas_size = 7
-    arrays_dir = "results/arrays/"
-    params_dir = "results/"
-    theta2 = [-2.893314940358090226e+01, 4.533549946844244261e+01,\
-              -1.171963198844387577e+01, 2.127790421237238938e+00]
+    arrays_dir = "results_2e2/arrays/"
+    params_dir = "results_2e2/"
+    theta2 = [-1.267939467881756599e+01, 9.280703169049563428e+01,\
+              -2.276655479729512521e+01, -3.401315716142687506e+01]
     # Berry's contraction tolerance
     contract_tol = 1e-12
     # Direct Search params
     opt_tol = 1e-4
     step_size = 1e-2
     # Nelder-Mead params
-    max_iter = 1e4
+    max_iter = 1000
+    # Root finding params
+    root_tol = 5e-3
+    root_max_iter = 100
     
     if run_option == "genArrays":
         inst = GenArrays(num_periods, areas)
@@ -51,16 +56,18 @@ def main(run_option):
     elif run_option == "diagnostics":
         inst = Diagnostics(ns, num_periods, num_prods, areas_size, arrays_dir,\
                            params_dir, theta2, contract_tol)
-        #inst.covariance("theta2_NM")
-        inst.desc_stats()
+        inst.covariance("theta2_NM")
+        #inst.desc_stats()
 
     elif run_option == "supplyAnalysis":
         inst = SupplyAnalysis(ns, num_periods, num_prods, areas_size, arrays_dir,\
                            params_dir, theta2, contract_tol)
-        inst.supp_call("theta2_NM")
+        inst.supp_call("theta2_NM", root_tol, root_max_iter)
     else:
         print("invalid run option")
 
         
 if __name__ == "__main__":
-    main("diagnostics")
+    start_time = time.perf_counter()
+    main("supplyAnalysis")
+    print('Ellapsed time: ', (time.perf_counter() - start_time)/60)

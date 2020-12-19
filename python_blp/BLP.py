@@ -17,11 +17,12 @@ def obj_load(directory, obj_name):
 
     return x
 
-def persist(filename, obj):
+def persist(filename, obj, numpy=True):
     with open(filename + ".pkl", 'wb') as pkl_file:
         pickle.dump(obj, pkl_file)
-    with open(filename, 'w') as np_file:
-        np.savetxt(np_file, obj)
+    if numpy:
+        with open(filename, 'w') as np_file:
+            np.savetxt(np_file, obj)
     print("File " + filename + " saved")
     
 
