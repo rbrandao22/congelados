@@ -36,16 +36,19 @@ class Diagnostics(BLP):
         persist(self.params_dir + "std_dev_theta1", std_dev_theta1)
 
     def desc_stats(self):
-        # averages from data
+        # init averages and std from data
         avg_prices = {}
         avg_shares = {}
+        std_prices = {}
+        avg_std_prices = np.zeros(self.num_prods)
         # average from counterfactual new eq prices
         X_p = obj_load(self.params_dir, "X_p")
-        avg_neq_prices = {}
+        avg_cfeq_prices = {}
         for prod in np.sort(np.unique(self.prod_id))[:-1]:
             avg_prices[str(prod)] = {}
             avg_shares[str(prod)] = {}
-            avg_neq_prices[str(prod)] = {}
+            std_prices[str(prod)] = {}
+            avg_cfeq_prices[str(prod)] = {}
             for area in np.unique(self.area_id):
                 avg_prices[str(prod)][str(area)] =\
                     np.mean(self.X2[np.intersect1d(np.where(self.prod_id ==\
@@ -57,12 +60,26 @@ class Diagnostics(BLP):
                                                             prod),\
                                                    np.where(self.area_id ==\
                                                             area))])
-                avg_neq_prices[str(prod)][str(area)] =\
+                avg_cfeq_prices[str(prod)][str(area)] =\
                     np.mean(X_p[np.intersect1d(np.where(self.prod_id ==\
                                                         prod),\
                                                np.where(self.area_id ==\
                                                         area))])
+            for period in np.sort(np.unique(self.period_id))[:-1]:
+                std_prices[str(prod)][str(period)] =\
+                    np.std(self.X2[np.intersect1d(np.where(self.prod_id ==\
+                                                           prod),\
+                                                  np.where(self.period_id ==\
+                                                           period))])
+            for period, std_price in std_prices[str(prod)].items():
+                if not(np.isnan(std_price)):
+                    avg_std_prices[prod] += std_price
+                else:
+                    avg_std_prices[prod] += 0.
+            avg_std_prices[prod] /= len(std_prices[str(prod)])
         persist(self.params_dir + "avg_prices", avg_prices, False)
         persist(self.params_dir + "avg_shares", avg_shares, False)
-        persist(self.params_dir + "avg_neq_prices", avg_neq_prices,\
+        persist(self.params_dir + "avg_cfeq_prices", avg_cfeq_prices,\
                 False)
+        persist(self.params_dir + "std_prices", std_prices, False)
+        persist(self.params_dir + "avg_std_prices", avg_std_prices)

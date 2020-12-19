@@ -33,7 +33,7 @@ def main(run_option):
     max_iter = 1000
     # Root finding params
     root_tol = 5e-3
-    root_max_iter = 100
+    root_max_iter = 30
     
     if run_option == "genArrays":
         inst = GenArrays(num_periods, areas)
@@ -56,8 +56,8 @@ def main(run_option):
     elif run_option == "diagnostics":
         inst = Diagnostics(ns, num_periods, num_prods, areas_size, arrays_dir,\
                            params_dir, theta2, contract_tol)
-        inst.covariance("theta2_NM")
-        #inst.desc_stats()
+        #inst.covariance("theta2_NM")
+        inst.desc_stats()
 
     elif run_option == "supplyAnalysis":
         inst = SupplyAnalysis(ns, num_periods, num_prods, areas_size, arrays_dir,\
@@ -69,5 +69,5 @@ def main(run_option):
         
 if __name__ == "__main__":
     start_time = time.perf_counter()
-    main("supplyAnalysis")
+    main("diagnostics")
     print('Ellapsed time: ', (time.perf_counter() - start_time)/60)

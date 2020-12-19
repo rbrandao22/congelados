@@ -13,7 +13,7 @@ def obj_load(directory, obj_name):
         with open(obj_file, 'rb') as pkl_file:
             x = pickle.load(pkl_file)
     except:
-        print("File " + obj_file + " not found or load failed")
+        raise Exception("File " + obj_file + " not found or load failed")
 
     return x
 
@@ -39,6 +39,7 @@ class BLP:
         self.X2 = obj_load(arrays_dir, "X2")
         self.Z = obj_load(arrays_dir, "Z")
         self.mkt_id = obj_load(arrays_dir, "mkt_id")
+        self.period_id = obj_load(arrays_dir, "period_id")
         self.prod_id = obj_load(arrays_dir, "prod_id")
         self.brf_id = obj_load(arrays_dir, "brf_id")
         self.area_id = obj_load(arrays_dir, "area_id")

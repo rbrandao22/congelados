@@ -74,7 +74,7 @@ class SupplyAnalysis(BLP):
         self.firms_FOCs()
         diff = self.X2[self.idxs] - self.X_p
         max_diff = abs(max(diff.min(), diff.max(), key=abs))
-        with open(self.params_dir+"hybr_diff", 'a') as diff_file:
+        with open(self.params_dir+"lm_diff", 'a') as diff_file:
             diff_file.write(str(self.mkt)+'\t'+str(max_diff)+"\n")
         print(max_diff)
         return (self.X2[self.idxs] - self.X_p)[:, 0]
@@ -83,7 +83,7 @@ class SupplyAnalysis(BLP):
         # initilize vars and clear log file
         self.theta2 = obj_load(self.params_dir, params_file)
         try:
-            os.remove(self.params_dir+"hybr_diff")
+            os.remove(self.params_dir+"lm_diff")
         except OSError:
             pass
         X_0 = np.copy(self.X2) # initial prices
@@ -103,13 +103,18 @@ class SupplyAnalysis(BLP):
             self.idxs = np.sort(np.where(self.mkt_id == self.mkt)[0])[:-1]
             self.X2 = np.copy(X_0)
             self.X1[:, 0] = np.copy(X_0[:, 0])
-            self.contraction()
-            X_p = np.copy(self.X2[self.idxs])
-            sol = root(self.supp_obj, X_p, method="hybr", tol = root_tol,\
-                       options={"maxiter": root_max_iter})
-            print("Results for mkt = " + str(self.mkt) + ":")
-            print(sol.success)
-            print(sol.x)
-            print(sol.message)
-            X_f[self.idxs] = np.copy(self.X2[self.idxs])
-        persist(self.params_dir + "X_f_hybr", self.X_f)
+            # if Omega is identity prices are in eq, else compute new eq
+            if np.all(self.Omega[str(self.mkt)] ==\
+                      np.identity(self.Omega[str(self.mkt)].shape[0])):
+                X_f[self.idxs] = np.copy(self.X2[self.idxs])
+            else:
+                self.contraction()
+                X_p = np.copy(self.X2[self.idxs])
+                sol = root(self.supp_obj, X_p, method="lm", tol = root_tol,\
+                           options={"maxiter": root_max_iter})
+                print("Results for mkt = " + str(self.mkt) + ":")
+                print(sol.success)
+                print(sol.x)
+                print(sol.message)
+                X_f[self.idxs] = np.copy(self.X2[self.idxs])
+        persist(self.params_dir + "X_f_lm", self.X_f)

@@ -31,6 +31,7 @@ class GenArrays:
         self.S = np.empty([num_prods * num_mkts])
         self.S = self.S[:, np.newaxis]
         self.mkt_id = np.empty([num_prods * num_mkts], dtype=int)
+        self.period_id = np.empty([num_prods * num_mkts], dtype=int)
         self.prod_id = np.zeros([num_prods * num_mkts], dtype=int)
         self.brf_id = np.zeros([num_prods * num_mkts], dtype=int)
         i = 0
@@ -40,6 +41,7 @@ class GenArrays:
             for row in shares_data:
                 self.S[i] = row[t+1]
                 self.mkt_id[i] = mkt_counter
+                self.period_id[i] = t % num_periods
                 self.prod_id[i] = prod_counter
                 if (prod_counter == 0 or prod_counter == 1):
                     self.brf_id[i] = 1
@@ -135,6 +137,7 @@ class GenArrays:
         self.X2 = np.delete(self.X2, nan_rows, axis=0)
         self.Z = np.delete(self.Z, nan_rows, axis=0)
         self.mkt_id = np.delete(self.mkt_id, nan_rows, axis=0)
+        self.period_id = np.delete(self.period_id, nan_rows, axis=0)
         self.prod_id = np.delete(self.prod_id, nan_rows, axis=0)
         self.brf_id = np.delete(self.brf_id, nan_rows, axis=0)
         self.area_id = np.delete(self.area_id, nan_rows, axis=0)
@@ -236,10 +239,11 @@ class GenArrays:
 
     def save_arrays(self,save_dir):
         save_data = {"S": self.S, "delta": self.delta, "X1": self.X1, "X2":\
-                     self.X2, "Z": self.Z, "mkt_id": self.mkt_id, "prod_id":\
-                     self.prod_id, "brf_id": self.brf_id, "area_id":\
-                     self.area_id, "outgood_id": self.outgood_id, "v": self.v,\
-                     "D_0": self.D_0, "D_1": self.D_1, "D_2": self.D_2}
+                     self.X2, "Z": self.Z, "mkt_id": self.mkt_id,\
+                     "period_id": self.period_id, "prod_id": self.prod_id,\
+                     "brf_id": self.brf_id, "area_id": self.area_id,\
+                     "outgood_id": self.outgood_id, "v": self.v, "D_0":\
+                     self.D_0, "D_1": self.D_1, "D_2": self.D_2}
         for name, array in save_data.items():
             filename = save_dir + name + ".pkl"
             try:
