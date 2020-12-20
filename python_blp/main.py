@@ -15,13 +15,13 @@ def main(run_option):
              [21, 22, 23], [24, 26, 27]]
     num_bins_renda = 7
     num_bins_idade = 12
-    save_dir = "results_2e2/arrays/"
+    save_dir = "results/arrays/"
 
     ## other params
     num_prods = 7
     areas_size = 7
-    arrays_dir = "results_2e2/arrays/"
-    params_dir = "results_2e2/"
+    arrays_dir = "results/arrays/"
+    params_dir = "results/"
     theta2 = [-1.267939467881756599e+01, 9.280703169049563428e+01,\
               -2.276655479729512521e+01, -3.401315716142687506e+01]
     # Berry's contraction tolerance
@@ -32,8 +32,8 @@ def main(run_option):
     # Nelder-Mead params
     max_iter = 1000
     # Root finding params
-    root_tol = 5e-3
-    root_max_iter = 30
+    root_tol = 1e-3
+    root_max_iter = 1000
     
     if run_option == "genArrays":
         inst = GenArrays(num_periods, areas)

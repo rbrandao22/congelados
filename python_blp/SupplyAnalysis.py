@@ -74,7 +74,7 @@ class SupplyAnalysis(BLP):
         self.firms_FOCs()
         diff = self.X2[self.idxs] - self.X_p
         max_diff = abs(max(diff.min(), diff.max(), key=abs))
-        with open(self.params_dir+"lm_diff", 'a') as diff_file:
+        with open(self.params_dir+"hybr_diff", 'a') as diff_file:
             diff_file.write(str(self.mkt)+'\t'+str(max_diff)+"\n")
         print(max_diff)
         return (self.X2[self.idxs] - self.X_p)[:, 0]
@@ -83,11 +83,12 @@ class SupplyAnalysis(BLP):
         # initilize vars and clear log file
         self.theta2 = obj_load(self.params_dir, params_file)
         try:
-            os.remove(self.params_dir+"lm_diff")
+            os.remove(self.params_dir+"hybr_diff")
         except OSError:
             pass
         X_0 = np.copy(self.X2) # initial prices
         X_f = np.copy(self.X2) # final prices
+        cfeq_idxs = [] # grab counterfactual eq idxs
         self.contraction()
         self.calc_phi_inv()
         self.calc_theta1()
@@ -110,11 +111,14 @@ class SupplyAnalysis(BLP):
             else:
                 self.contraction()
                 X_p = np.copy(self.X2[self.idxs])
-                sol = root(self.supp_obj, X_p, method="lm", tol = root_tol,\
-                           options={"maxiter": root_max_iter})
+                sol = root(self.supp_obj, X_p, method="hybr", tol = root_tol)#,\
+                           #options={"maxiter": root_max_iter})
+                           # (maxiter supported by other than hybr only)
                 print("Results for mkt = " + str(self.mkt) + ":")
                 print(sol.success)
                 print(sol.x)
                 print(sol.message)
                 X_f[self.idxs] = np.copy(self.X2[self.idxs])
-        persist(self.params_dir + "X_f_lm", self.X_f)
+                cfeq_idxs.append(self.idxs)
+        persist(self.params_dir + "X_f_hybr", X_f)
+        persist(self.params_dir + "cfeq_idxs_hybr", cfeq_idxs)
