@@ -118,4 +118,4 @@ class Diagnostics(BLP):
         persist(self.params_dir + "avg_std_prices", avg_std_prices)
         persist(self.params_dir + "diff_cfeq_prices", diff_cfeq_prices)
         persist(self.params_dir + "avg_prod_prices", avg_prod_prices)
-        persist(self.params_dir + "avg_mcs", avg_prod_prices)
+        persist(self.params_dir + "avg_mcs", avg_mcs)
