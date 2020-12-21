@@ -122,3 +122,4 @@ class SupplyAnalysis(BLP):
                 cfeq_idxs.append(self.idxs)
         persist(self.params_dir + "X_f_hybr", X_f)
         persist(self.params_dir + "cfeq_idxs_hybr", cfeq_idxs)
+        persist(self.params_dir + "mc", self.mc, False)

@@ -36,36 +36,31 @@ class Diagnostics(BLP):
         persist(self.params_dir + "std_dev_theta1", std_dev_theta1)
 
     def desc_stats(self):
-        # init averages and std from data
+        # init averages and std dev from data
         avg_prices = {} # avgs for each area
         avg_prod_prices = np.zeros(self.num_prods) # overall prod avgs
         avg_shares = {}
         std_prices = {}
         avg_std_prices = np.zeros(self.num_prods)
         
-        # average from counterfactual new eq prices
-        gX_f = obj_load(self.params_dir, "gX_f") ##CHANGE LATER FOR X_f
-        X_f = np.copy(self.X2)
-        gX_f_mkts = obj_load(self.params_dir, "gX_f_mkts") ##REMOVE LATER
+        # averages from counterfactual new eq prices and marginal costs
+        X_f = obj_load(self.params_dir, "X_f_hybr")
+        cfeq_idxs = obj_load(self.params_dir, "cfeq_idxs_hybr")
+        cfeq_idxs = np.concatenate(cfeq_idxs)
+        aux_diff = X_f - self.X2
         avg_cfeq_prices = {}
         diff_cfeq_prices = np.zeros(self.num_prods)
-        
-        #REMOVE later
-        j = 0
-        for i in range(X_f.shape[0]):
-            if self.mkt_id[i] in gX_f_mkts and self.prod_id[i] != 7:
-                X_f[i] = gX_f[j]
-                j +=1
-        #END REMOVE
-        aux_diff = X_f - self.X2
-        aux_diff_idxs = np.where(abs(aux_diff)>0.)[0]
-
+        mc = obj_load(self.params_dir, "mc")
+        avg_mcs = np.zeros([self.num_prods, self.areas_size])
+        avg_mcs_counter = np.zeros([self.num_prods, self.areas_size])
         
         for prod in np.sort(np.unique(self.prod_id))[:-1]:
             avg_prices[str(prod)] = {}
             avg_shares[str(prod)] = {}
             std_prices[str(prod)] = {}
             avg_cfeq_prices[str(prod)] = {}
+
+            # average prices and shares
             for area in np.unique(self.area_id):
                 avg_prices[str(prod)][str(area)] =\
                     np.mean(self.X2[np.intersect1d(np.where(self.prod_id ==\
@@ -82,6 +77,8 @@ class Diagnostics(BLP):
                                                         prod),\
                                                np.where(self.area_id ==\
                                                         area))])
+
+            # std deviation in prices
             for period in np.sort(np.unique(self.period_id))[:-1]:
                 std_prices[str(prod)][str(period)] =\
                     np.std(self.X2[np.intersect1d(np.where(self.prod_id ==\
@@ -95,12 +92,23 @@ class Diagnostics(BLP):
                     avg_std_prices[prod] += 0.
             avg_std_prices[prod] /= len(std_prices[str(prod)])
 
+            # diff between couterfactual eq prices and actual prices
             diff_cfeq_prices[prod] =\
-                np.mean(aux_diff[np.where(self.prod_id[aux_diff_idxs]==prod)[0]])
+                np.mean(aux_diff[np.intersect1d(np.where(self.prod_id==prod),\
+                                                cfeq_idxs)])
             for area, price in avg_prices[str(prod)].items():
                 avg_prod_prices[prod] += price
             avg_prod_prices[prod] /= len(avg_prices[str(prod)])
 
+        # average marginal costs
+        for mkt in np.unique(self.mkt_id):
+            mkt_rows = np.where(self.mkt_id==mkt)[0][:-1]
+            for i in range(mc[str(mkt)].shape[0]):
+                prod = self.prod_id[mkt_rows[i]]
+                area = self.area_id[mkt_rows[i]]
+                avg_mcs[prod, area] += mc[str(mkt)][i]
+                avg_mcs_counter[prod, area] += 1
+        avg_mcs /= avg_mcs_counter
 
         persist(self.params_dir + "avg_prices", avg_prices, False)
         persist(self.params_dir + "avg_shares", avg_shares, False)
@@ -110,3 +118,4 @@ class Diagnostics(BLP):
         persist(self.params_dir + "avg_std_prices", avg_std_prices)
         persist(self.params_dir + "diff_cfeq_prices", diff_cfeq_prices)
         persist(self.params_dir + "avg_prod_prices", avg_prod_prices)
+        persist(self.params_dir + "avg_mcs", avg_prod_prices)
