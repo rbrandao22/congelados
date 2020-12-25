@@ -102,27 +102,44 @@ class GenArrays:
                         self.X1[i, col] = 0.
                 i += 1
 
-        # fill Z - area dummies, brand dummies e instrumentos: precos de outras\
-        # areas no mesmo periodo
+        # fill Z - area dummies, brand dummies e instrumentos: precos de outros\
+        # mercados
+        
+        ## first version: precos de outras áreas no mesmo período
+        #self.Z = np.empty([num_prods * num_mkts, len(areas) + num_prods - 2 +\
+        #                    len(areas) - 1])
+        #i = 0
+        #for t in range(num_mkts):
+        #    period = t % num_periods
+        #    for j in range(num_prods):
+        #        for col in range(1, self.X1.shape[1]):
+        #            self.Z[i, col-1] = self.X1[i, col]
+        #        col = self.X1.shape[1] - 1
+        #        for k in range(len(areas)):
+        #            aux_row = j + period * num_prods + k * (num_prods *\
+        #                                                    num_periods)
+        #            if i != aux_row:
+        #                if math.isnan(self.X1[aux_row, 0]):
+        #                    self.Z[i, col] = 0.
+        #                else:
+        #                    self.Z[i, col] = self.X1[aux_row, 0]
+        #                col += 1
+        #        i += 1
+        
+        ## second version: precos do produto em todos os outros mercados
         self.Z = np.empty([num_prods * num_mkts, len(areas) + num_prods - 2 +\
-                            len(areas) - 1])
-        i = 0
-        for t in range(num_mkts):
-            period = t % num_periods
-            for j in range(num_prods):
-                for col in range(1, self.X1.shape[1]):
-                    self.Z[i, col-1] = self.X1[i, col]
-                col = self.X1.shape[1] - 1
-                for k in range(len(areas)):
-                    aux_row = j + period * num_prods + k * (num_prods *\
-                                                            num_periods)
-                    if i != aux_row:
-                        if math.isnan(self.X1[aux_row, 0]):
-                            self.Z[i, col] = 0.
-                        else:
-                            self.Z[i, col] = self.X1[aux_row, 0]
-                        col += 1
-                i += 1
+                           len(areas) * num_periods - 1])
+        for i in range(num_mkts * num_prods):
+            # fill w/ X1
+            self.Z[i, :len(areas) + num_prods - 2] = self.X1[i, 1:]
+            # fill w/ instruments
+            instrum_idxs = np.where(self.prod_id==self.prod_id[i])[0]
+            instrum_idxs = np.delete(instrum_idxs,\
+                                     np.where(instrum_idxs==i)) # remove self
+            instrums = self.X2[instrum_idxs][:, 0]
+            instrums[np.isnan(instrums)] = 0.
+            self.Z[i, len(areas) + num_prods - 2:] = instrums
+            i += 1
 
         # close database connection
         conn.commit()

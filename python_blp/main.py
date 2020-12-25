@@ -69,5 +69,5 @@ def main(run_option):
         
 if __name__ == "__main__":
     start_time = time.perf_counter()
-    main("diagnostics")
+    main("estimationNM")
     print('Ellapsed time: ', (time.perf_counter() - start_time)/60)
